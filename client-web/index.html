@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#dce9ed"><title>Свой остров — первый берег</title></head>
+<body>
+  <canvas id="scene" aria-label="Трёхмерный остров. Для выбора клетки также используйте кнопки в панели."></canvas>
+  <header><span class="eyebrow">СВОЙ ОСТРОВ / ПРОТОТИП 01</span><h1>Первый берег<span>.</span></h1><p>Большая история начинается с маленького острова.</p></header>
+  <aside aria-label="Информация о клетке"><div class="panel-heading"><span class="eyebrow">ИССЛЕДОВАНИЕ</span><span class="badge">7 гексов</span></div><h2>Ваш участок</h2><p class="intro">Выберите клетку на острове и узнайте, что на ней находится.</p><div id="details" aria-live="polite"><p>Пока ничего не выбрано</p></div><div class="cell-list" id="cells" aria-label="Выбрать клетку"></div><button id="reset" class="reset">Вернуть камеру ↗</button><footer>Маленький остров.<br>Много возможностей.</footer></aside>
+  <div class="controls"><span>↔ Перетащите — вращение</span><span>↕ Колесо — масштаб</span><span>◎ Нажмите — выбор</span></div>
+  <div id="error" role="alert" hidden></div>
+  <script type="module" src="/src/main.ts"></script>
+</body></html>

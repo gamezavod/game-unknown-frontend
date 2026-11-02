@@ -1,0 +1,9 @@
+[
+  {"q":0,"r":0,"type":"grass","state":"Свободна","height":0.68},
+  {"q":1,"r":0,"type":"forest","state":"Лес сохранён","height":0.8},
+  {"q":0,"r":1,"type":"coast","state":"Выход к морю","height":0.4},
+  {"q":-1,"r":1,"type":"grass","state":"Свободна","height":0.58},
+  {"q":-1,"r":0,"type":"forest","state":"Лес сохранён","height":0.72},
+  {"q":0,"r":-1,"type":"rock","state":"Залежи камня","height":1.02},
+  {"q":1,"r":-1,"type":"grass","state":"Свободна","height":0.74}
+]
