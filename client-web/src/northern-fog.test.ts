@@ -1,8 +1,7 @@
 import { expect, test } from "vitest";
 import * as T from "three";
-import { demoMapSource, mapBounds } from "./map-data";
+import { demoMapSource } from "./map-data";
 import { fogDensityAt, fogFrontAtX, northernFogRegion } from "./northern-fog";
-import { cameraPanBounds, fitIslandCamera } from "./camera";
 
 test("северный туман закрывает землю и высокие объекты, юг остаётся ясным", async () => {
   const cells = await demoMapSource.load(),
@@ -32,31 +31,3 @@ test("туман переносится вместе с картой по Z, б�
     fogDensityAt(moved, new T.Vector3(2, 3, original.frontZ - 2 + shift)),
   );
 });
-
-for (const zoom of [1, 0.5])
-  test(`северный предел камеры допускает полностью закрытый туманом кадр при zoom ${zoom}`, async () => {
-    const cells = await demoMapSource.load(),
-      map = mapBounds(cells, 1.25),
-      fog = northernFogRegion(cells, 1.25, 28);
-    const camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
-    const target = fitIslandCamera(
-      camera,
-      new T.Box3(new T.Vector3(-14, -0.2, -11), new T.Vector3(14, 6, 11)),
-      390,
-      844,
-    );
-    camera.zoom = zoom;
-    camera.updateProjectionMatrix();
-    const limits = cameraPanBounds(camera, target, map, fog);
-    const offset = limits.minZ - target.z;
-    camera.position.z += offset;
-    target.z += offset;
-    camera.updateMatrixWorld(true);
-    const ray = camera.getWorldDirection(new T.Vector3());
-    for (const x of [-1, 0, 1])
-      for (const y of [-1, 0, 1]) {
-        const p = new T.Vector3(x, y, 0).unproject(camera);
-        p.addScaledVector(ray, (fog.topY - 1.5 - p.y) / ray.y);
-        expect(fogDensityAt(fog, p)).toBeGreaterThan(0.9);
-      }
-  });

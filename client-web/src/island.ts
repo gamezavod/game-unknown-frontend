@@ -1,6 +1,7 @@
 import * as T from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { axialToWorld } from "./hex";
+import { canSelectCell } from "./selection";
 import { forestLayout, mountainLayout } from "./scenery";
 import { mapBounds, type Cell, type Building } from "./map-data";
 
@@ -367,9 +368,11 @@ export async function createIsland(cells: Cell[]) {
     framingPoints,
     bounds: mapBounds(cells, HEX_RADIUS),
     select(index: number) {
+      if (!canSelectCell(cells, index)) return false;
       selection.position.copy(tileRoots[index].position);
       selection.position.y += 0.035;
       selection.visible = true;
+      return true;
     },
   };
 }
