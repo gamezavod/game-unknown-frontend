@@ -1,11 +1,90 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#dce9ed"><title>Свой остров — первый берег</title></head>
-<body>
-  <canvas id="scene" aria-label="Трёхмерный остров. Для выбора клетки также используйте кнопки в панели."></canvas>
-  <header><span class="eyebrow">СВОЙ ОСТРОВ / ПРОТОТИП 01</span><h1>Первый берег<span>.</span></h1><p>Большая история начинается с маленького острова.</p></header>
-  <aside aria-label="Информация о клетке"><div class="panel-heading"><span class="eyebrow">ИССЛЕДОВАНИЕ</span><span class="badge">7 гексов</span></div><h2>Ваш участок</h2><p class="intro">Выберите клетку на острове и узнайте, что на ней находится.</p><div id="details" aria-live="polite"><p>Пока ничего не выбрано</p></div><div class="cell-list" id="cells" aria-label="Выбрать клетку"></div><button id="reset" class="reset">Вернуть камеру ↗</button><footer>Маленький остров.<br>Много возможностей.</footer></aside>
-  <div class="controls"><span>↔ Перетащите — вращение</span><span>↕ Колесо — масштаб</span><span>◎ Нажмите — выбор</span></div>
-  <div id="error" role="alert" hidden></div>
-  <script type="module" src="/src/main.ts"></script>
-</body></html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#287f8c" />
+    <link rel="icon" href="/island.svg" type="image/svg+xml" />
+    <title>Свой остров — Первый берег</title>
+  </head>
+  <body>
+    <canvas
+      id="scene"
+      tabindex="0"
+      aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Выбор клетки также доступен в списке."
+    ></canvas>
+    <header>
+      <div class="eyebrow">
+        <span class="brand-mark">⬡</span> СВОЙ ОСТРОВ
+        <span class="divider">/</span> МИР 01
+      </div>
+      <h1>Первый берег<span>.</span></h1>
+      <p>Место, где начинается ваша история</p>
+    </header>
+    <div class="time-panel">
+      <button id="time-toggle" aria-pressed="false" title="Сменить день и ночь">
+        ☀ День</button
+      ><label><input type="checkbox" id="auto-time" /> Автосмена</label>
+    </div>
+    <aside aria-label="Исследование острова">
+      <div class="panel-heading">
+        <span class="eyebrow">ВАШ ОСТРОВ</span
+        ><span class="live-dot" title="Карта доступна"></span>
+      </div>
+      <h2>Тихая гавань</h2>
+      <p id="map-count" class="map-count">Загружаем карту…</p>
+      <div class="panel-rule"></div>
+      <div id="selection-hint">
+        <span class="hex-icon">⌖</span>
+        <h3>Присмотритесь к острову</h3>
+        <p>Коснитесь клетки, чтобы узнать,<br />что на ней находится.</p>
+      </div>
+      <div id="selection" aria-live="polite" hidden>
+        <span id="cell-coordinates" class="eyebrow"></span>
+        <h3 id="cell-title"></h3>
+        <dl>
+          <div>
+            <dt>Местность</dt>
+            <dd id="cell-type"></dd>
+          </div>
+          <div>
+            <dt>На участке</dt>
+            <dd id="cell-state"></dd>
+          </div>
+        </dl>
+      </div>
+      <label class="select-label" for="cell-select">Найти клетку</label
+      ><select id="cell-select">
+        <option value="">Выберите участок…</option>
+      </select>
+      <div class="legend">
+        <span><i class="grass"></i>Луг</span
+        ><span><i class="forest"></i>Лес</span
+        ><span><i class="rock"></i>Горы</span
+        ><span><i class="coast"></i>Берег</span>
+      </div>
+      <p class="note">Маленький остров. Большое начало.</p>
+    </aside>
+    <nav class="camera-controls" aria-label="Камера">
+      <button id="zoom-in" aria-label="Приблизить">+</button
+      ><button id="zoom-out" aria-label="Отдалить">−</button><span></span
+      ><button id="reset" aria-label="Вернуть камеру" title="Весь остров">
+        ⌖
+      </button>
+    </nav>
+    <footer>
+      <span class="status-dot"></span><span>Перетащите карту</span><b>·</b
+      ><span>Разведите пальцы для масштаба</span><b>·</b
+      ><span>Коснитесь клетки</span>
+    </footer>
+    <div class="world-label">ПЕРВЫЙ БЕРЕГ <span>ТИХИЙ ОКЕАН</span></div>
+    <div id="loading" role="status">
+      Открываем ваш остров<span>Загружаем берег, лес и маленькие дома…</span>
+    </div>
+    <div id="error" role="alert" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
