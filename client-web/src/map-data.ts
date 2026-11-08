@@ -23,6 +23,8 @@ export interface Cell extends Axial {
   height: number;
   state: "visible" | "unexplored";
   rotation?: number;
+  /** Вариант декоративной модели (0–2), без влияния на механику. */
+  variant?: number;
   building?: Building;
 }
 export interface MapSource {
@@ -60,6 +62,10 @@ export function parseCells(value: unknown): Cell[] {
       !Number.isFinite(c.height) ||
       c.height < 0 ||
       (c.state !== "visible" && c.state !== "unexplored") ||
+      (c.variant !== undefined &&
+        (!Number.isInteger(c.variant) ||
+          Number(c.variant) < 0 ||
+          Number(c.variant) > 2)) ||
       (c.rotation !== undefined &&
         (typeof c.rotation !== "number" || !Number.isFinite(c.rotation))) ||
       (c.building !== undefined &&
