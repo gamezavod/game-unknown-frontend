@@ -1,7 +1,7 @@
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createIsland } from "./island";
-import { fitIslandCamera } from "./camera";
+import { fitIslandCamera, cameraPanBounds } from "./camera";
 import { createAtmosphere } from "./atmosphere";
 import {
   demoMapSource,
@@ -46,7 +46,6 @@ async function start() {
   controls.touches.TWO = T.TOUCH.DOLLY_PAN;
   controls.minZoom = 0.5;
   controls.maxZoom = 3;
-  const cameraLimits = span * 0.55;
   function reset() {
     // Убираем остаточную инерцию перед восстановлением ракурса.
     controls.enableDamping = false;
@@ -90,8 +89,14 @@ async function start() {
     } else return;
     e.preventDefault();
   });
-  const sky = new T.HemisphereLight(0xbad9db, 0x3f4f30, 1.3);
+  const sky = new T.HemisphereLight(0xbad9db, 0x817650, 1.45);
   scene.add(sky);
+  const shoreFill = new T.DirectionalLight(0xc2d3d1, 0.65);
+  shoreFill.position
+    .copy(center)
+    .add(new T.Vector3(span * 0.2, span * 0.12, span));
+  shoreFill.target.position.copy(center);
+  scene.add(shoreFill, shoreFill.target);
   const sun = new T.DirectionalLight(0xffe4ad, 3.4);
   sun.position
     .copy(center)
@@ -109,7 +114,7 @@ async function start() {
   });
   sun.shadow.normalBias = 0.025;
   sun.shadow.bias = -0.00015;
-  const atmosphere = createAtmosphere(cells, center, span, camera);
+  const atmosphere = createAtmosphere(cells, center, span, camera, renderer);
   scene.add(atmosphere.root);
   let night = false,
     nightBlend = 0,
@@ -192,6 +197,7 @@ async function start() {
   function resize() {
     renderer.setSize(innerWidth, innerHeight);
     reset();
+    atmosphere.fog.resize();
   }
   window.addEventListener("resize", resize);
   resize();
@@ -218,26 +224,33 @@ async function start() {
     (scene.fog as T.Fog).color.copy(scene.background as T.Color);
     sun.color.copy(daySun).lerp(nightSun, nightBlend);
     sun.intensity = T.MathUtils.lerp(3.4, 1.2, nightBlend);
-    sky.intensity = T.MathUtils.lerp(1.3, 0.6, nightBlend);
+    shoreFill.intensity = T.MathUtils.lerp(0.65, 0.2, nightBlend);
+    sky.intensity = T.MathUtils.lerp(1.45, 0.6, nightBlend);
     renderer.toneMappingExposure = T.MathUtils.lerp(1.08, 0.95, nightBlend);
     atmosphere.update(clock.elapsedTime, nightBlend);
     controls.update();
     previousTarget.copy(controls.target);
+    const limits = cameraPanBounds(
+      camera,
+      controls.target,
+      b,
+      atmosphere.fog.region,
+    );
     controls.target.x = T.MathUtils.clamp(
       controls.target.x,
-      center.x - cameraLimits,
-      center.x + cameraLimits,
+      limits.minX,
+      limits.maxX,
     );
     controls.target.z = T.MathUtils.clamp(
       controls.target.z,
-      center.z - cameraLimits,
-      center.z + cameraLimits,
+      limits.minZ,
+      limits.maxZ,
     );
     controls.target.y = center.y;
     camera.position.add(
       targetCorrection.copy(controls.target).sub(previousTarget),
     );
-    renderer.render(scene, camera);
+    atmosphere.fog.render(scene);
   });
   $("loading").hidden = true;
   canvas.dataset.ready = "true";
