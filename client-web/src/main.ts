@@ -1,14 +1,18 @@
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createIsland } from "./island";
-import { fitIslandCamera, cameraPanBounds } from "./camera";
-import { createAtmosphere } from "./atmosphere";
 import {
-  demoMapSource,
-  terrainNames,
-  buildingNames,
-  type Cell,
-} from "./map-data";
+  fitIslandCamera,
+  cameraPanBounds,
+  openIslandNavigation,
+} from "./camera";
+import { createAtmosphere } from "./atmosphere";
+import { demoMapSource, terrainNames, buildingNames } from "./map-data";
+import {
+  createCellSelection,
+  selectableCellIndices,
+  canPickCell,
+} from "./selection";
 import { TapGesture } from "./gestures";
 import "./style.css";
 
@@ -17,6 +21,7 @@ const $ = (id: string) => document.getElementById(id)!;
 async function start() {
   const cells = await demoMapSource.load();
   const island = await createIsland(cells);
+  const openIsland = openIslandNavigation(cells, 1.25);
   const renderer = new T.WebGLRenderer({
     canvas,
     antialias: true,
@@ -46,7 +51,9 @@ async function start() {
   controls.touches.TWO = T.TOUCH.DOLLY_PAN;
   controls.minZoom = 0.5;
   controls.maxZoom = 3;
+  let navigationRevision = 0;
   function reset() {
+    navigationRevision++;
     // Убираем остаточную инерцию перед восстановлением ракурса.
     controls.enableDamping = false;
     controls.update();
@@ -131,9 +138,8 @@ async function start() {
       automatic = (e.target as HTMLInputElement).checked;
     });
   let cycleElapsed = 0;
-  function select(index: number) {
+  const selection = createCellSelection(cells, (index, c) => {
     island.select(index);
-    const c = cells[index];
     $("cell-title").textContent =
       c.state === "unexplored"
         ? "Неизведанная земля"
@@ -153,11 +159,13 @@ async function start() {
       String(index);
     $("selection").hidden = false;
     $("selection-hint").hidden = true;
-  }
+  });
+  const select = selection.select;
   $("map-count").textContent =
     `${cells.length} клеток · ${cells.filter((c) => c.building).length} зданий`;
   const cellSelect = document.querySelector<HTMLSelectElement>("#cell-select")!;
-  cells.forEach((c: Cell, index) => {
+  selectableCellIndices(cells).forEach((index) => {
+    const c = cells[index];
     const option = new Option(
       `${c.q}, ${c.r} · ${c.state === "unexplored" ? "Не исследована" : c.building ? buildingNames[c.building] : terrainNames[c.type]}`,
       String(index),
@@ -166,7 +174,11 @@ async function start() {
   });
   cellSelect.addEventListener("change", () => {
     if (cellSelect.value !== "") {
-      select(Number(cellSelect.value));
+      if (!select(Number(cellSelect.value)))
+        cellSelect.value =
+          selection.selectedIndex === undefined
+            ? ""
+            : String(selection.selectedIndex);
       document.querySelector<HTMLDetailsElement>(".lookup")!.open = false;
     }
   });
@@ -192,7 +204,18 @@ async function start() {
       camera,
     );
     const hit = ray.intersectObjects(island.picking, false)[0];
-    if (hit) select(hit.object.userData.cellIndex as number);
+    if (
+      hit &&
+      canPickCell(
+        cells,
+        hit.object.userData.cellIndex,
+        ray.ray,
+        hit.distance,
+        atmosphere.fog.region,
+        clock.elapsedTime,
+      )
+    )
+      select(hit.object.userData.cellIndex as number);
   });
   function resize() {
     renderer.setSize(innerWidth, innerHeight);
@@ -208,6 +231,15 @@ async function start() {
   const previousTarget = new T.Vector3(),
     targetCorrection = new T.Vector3();
   const clock = new T.Clock();
+  let panCache:
+    | {
+        revision: number;
+        zoom: number;
+        aspect: number;
+        targetX: number;
+        limits: ReturnType<typeof cameraPanBounds>;
+      }
+    | undefined;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
     if (automatic) {
@@ -230,12 +262,28 @@ async function start() {
     atmosphere.update(clock.elapsedTime, nightBlend);
     controls.update();
     previousTarget.copy(controls.target);
-    const limits = cameraPanBounds(
-      camera,
-      controls.target,
-      b,
-      atmosphere.fog.region,
-    );
+    const aspect = camera.right - camera.left;
+    if (
+      !panCache ||
+      panCache.revision !== navigationRevision ||
+      panCache.zoom !== camera.zoom ||
+      panCache.aspect !== aspect ||
+      Math.abs(panCache.targetX - controls.target.x) > 0.5
+    ) {
+      panCache = {
+        revision: navigationRevision,
+        zoom: camera.zoom,
+        aspect,
+        targetX: controls.target.x,
+        limits: cameraPanBounds(
+          camera,
+          controls.target,
+          openIsland,
+          atmosphere.fog.region,
+        ),
+      };
+    }
+    const limits = panCache.limits;
     controls.target.x = T.MathUtils.clamp(
       controls.target.x,
       limits.minX,
