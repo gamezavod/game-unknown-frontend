@@ -11,13 +11,13 @@ const buildingModels: Record<Building, string> = {
   warehouse: "buildings/red/building_market_red",
   farm: "buildings/neutral/building_grain",
 };
-const forestModels = ["trees_A_medium", "trees_B_medium", "trees_A_small"];
+const forestModels = ["trees_A_medium", "trees_B_small", "trees_A_small"];
 const rockModels = [
   "mountain_A_grass",
   "mountain_B_grass_trees",
   "mountain_C_grass",
 ];
-function decorationPath(c: Cell) {
+function decorationPath(c: Cell, middleR: number) {
   if (c.building) return buildingModels[c.building];
   const models =
     c.type === "forest"
@@ -25,18 +25,27 @@ function decorationPath(c: Cell) {
       : c.type === "rock"
         ? rockModels
         : undefined;
-  return models ? `decoration/nature/${models[c.variant ?? 0]}` : undefined;
+  const variant =
+    c.type === "forest"
+      ? Math.abs(c.q * 13 + c.r * 7) % 4 === 0
+        ? 1
+        : c.r < middleR
+          ? 0
+          : 2
+      : (c.variant ?? 0);
+  return models ? `decoration/nature/${models[variant]}` : undefined;
 }
 export async function createIsland(cells: Cell[]) {
   const root = new T.Group(),
     loader = new GLTFLoader();
+  const middleR = cells.reduce((sum, c) => sum + c.r, 0) / cells.length;
   const paths = new Set([
     "tiles/base/hex_grass",
     "decoration/nature/rock_single_A",
     "decoration/nature/rock_single_B",
   ]);
   for (const c of cells) {
-    const path = decorationPath(c);
+    const path = decorationPath(c,middleR);
     if (path && c.state === "visible") paths.add(path);
   }
   const models = new Map(
@@ -66,6 +75,15 @@ export async function createIsland(cells: Cell[]) {
       }
     });
   const scale = HEX_RADIUS / (2 / Math.sqrt(3));
+  const layoutBounds = mapBounds(cells, HEX_RADIUS);
+  const north = layoutBounds.centerZ;
+  const settlement = cells
+    .filter((c) => c.building)
+    .map((c) => axialToWorld(c, HEX_RADIUS));
+  const settlementCenter = new T.Vector2(
+    settlement.reduce((n, p) => n + p.x, 0) / Math.max(1, settlement.length),
+    settlement.reduce((n, p) => n + p.z, 0) / Math.max(1, settlement.length),
+  );
   const basaltMaterial = new T.MeshStandardMaterial({
     color: 0x263d3d,
     roughness: 1,
@@ -133,22 +151,41 @@ export async function createIsland(cells: Cell[]) {
       const base = models.get("tiles/base/hex_grass")!.clone(true);
       base.scale.set(scale * 0.997, 0.26, scale * 0.997);
       tile.add(base);
-      const path = decorationPath(cell);
+      const path = decorationPath(cell,middleR);
       if (path) {
         const prop = models.get(path)!.clone(true);
-        prop.scale.setScalar(
-          scale *
-            (cell.building
-              ? cell.building === "townHall"
-                ? 2.3
-                : cell.building === "farm"
-                  ? 0.9
-                  : 1.65
-              : cell.type === "rock"
-                ? 1.05
-                : 1.05),
+        const seed = Math.abs(cell.q * 17 + cell.r * 31);
+        const rearMountain = cell.type === "rock" && z < north;
+        const propScale = cell.building
+          ? cell.building === "townHall"
+            ? 2.3
+            : cell.building === "farm"
+              ? 1
+              : 1.65
+          : cell.type === "rock"
+            ? rearMountain
+              ? 1.45 + (seed % 3) * 0.16
+              : 0.95
+            : 0.9 + (seed % 5) * 0.1;
+        prop.scale.setScalar(scale * propScale);
+        prop.rotation.y = T.MathUtils.degToRad(
+          (cell.rotation ?? 0) + (cell.type === "forest" ? (seed % 7) * 13 : 0),
         );
-        prop.rotation.y = T.MathUtils.degToRad(cell.rotation ?? 0);
+        if (cell.type === "forest") {
+          // Небольшие смещения и разная высота разбивают совпадающие ряды гексов.
+          prop.position.set(
+            Math.sin(seed * 1.7) * 0.32,
+            0,
+            Math.cos(seed * 2.3) * 0.3,
+          );
+        } else if (cell.building) {
+          // Свободнее расставляем крыши вокруг центра поселения, сохраняя их клетки.
+          prop.position.set(
+            (x - settlementCenter.x) * 0.06,
+            0,
+            (z - settlementCenter.y) * 0.06,
+          );
+        }
         tile.add(prop);
       }
     }
@@ -275,6 +312,28 @@ export async function createIsland(cells: Cell[]) {
   );
   root.updateMatrixWorld(true);
   const visualBounds = new T.Box3().setFromObject(root);
+  const framingPoints: T.Vector3[] = [];
+  root.traverse((o) => {
+    if (!(o instanceof T.Mesh)) return;
+    const positions = o.geometry.getAttribute("position");
+    if (positions.count < 2000) {
+      for (let i = 0; i < positions.count; i++)
+        framingPoints.push(
+          new T.Vector3()
+            .fromBufferAttribute(positions, i)
+            .applyMatrix4(o.matrixWorld),
+        );
+    } else {
+      o.geometry.computeBoundingBox();
+      const box = o.geometry.boundingBox!;
+      for (const x of [box.min.x, box.max.x])
+        for (const y of [box.min.y, box.max.y])
+          for (const z of [box.min.z, box.max.z])
+            framingPoints.push(
+              new T.Vector3(x, y, z).applyMatrix4(o.matrixWorld),
+            );
+    }
+  });
   const selection = new T.Mesh(
     new T.RingGeometry(HEX_RADIUS * 0.88, HEX_RADIUS * 0.98, 6),
     new T.MeshBasicMaterial({
@@ -291,6 +350,7 @@ export async function createIsland(cells: Cell[]) {
     root,
     picking,
     visualBounds,
+    framingPoints,
     bounds: mapBounds(cells, HEX_RADIUS),
     select(index: number) {
       selection.position.copy(tileRoots[index].position);

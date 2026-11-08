@@ -8,6 +8,7 @@ export function createAtmosphere(
   cells: Cell[],
   center: T.Vector3,
   span: number,
+  camera: T.OrthographicCamera,
 ) {
   const root = new T.Group();
   const land = cells
@@ -56,53 +57,51 @@ export function createAtmosphere(
   });
   const waves = new T.LineSegments(wavesGeometry, wavesMaterial);
   root.add(waves);
-  // Одна полупрозрачная пелена: маски соседних клеток объединяются максимумом,
-  // поэтому перекрытие не превращается в непрозрачную белую «вату».
+  // Светлая атмосферная перспектива по глубине сцены. Луч экранного пикселя
+  // пересекается с землёй; дымка следует карте при перемещении и масштабировании.
   const hidden = cells
     .filter((c) => c.state === "unexplored")
     .map((c) => axialToWorld(c, HEX_RADIUS));
-  const dayMist = new T.Color(0xb5c6b9),
-    nightMist = new T.Color(0x668c9c);
+  const farZ = hidden.length
+    ? Math.max(...hidden.map((p) => p.z))
+    : center.z - span * 0.35;
+  const dayMist = new T.Color(0xb9d0ca),
+    nightMist = new T.Color(0x50778b);
   const fogUniforms = {
     uColor: { value: dayMist.clone() },
     uTime: { value: 0 },
     uNight: { value: 0 },
-    uCells: { value: hidden.map((p) => new T.Vector2(p.x, p.z)) },
+    uCameraWorld: { value: camera.matrixWorld },
+    uProjectionInverse: { value: camera.projectionMatrixInverse },
+    uGroundY: { value: cells.reduce((s, c) => s + c.height, 0) / cells.length },
+    uClearZ: { value: farZ + span * 0.28 },
+    uFarZ: { value: farZ - span * 0.2 },
   };
-  if (hidden.length) {
-    const fogMaterial = new T.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: T.DoubleSide,
-      uniforms: fogUniforms,
-      vertexShader: `varying vec2 vGround;
-        void main(){vec4 world=modelMatrix*vec4(position,1.);vGround=world.xz;gl_Position=projectionMatrix*viewMatrix*world;}`,
-      fragmentShader: `uniform vec3 uColor; uniform float uTime; uniform float uNight;
-        uniform vec2 uCells[${hidden.length}];varying vec2 vGround;
-        void main(){float density=0.;
-          for(int i=0;i<${hidden.length};i++){
-            vec2 d=vGround-uCells[i];d.x+=sin(vGround.y*.6+uTime*.08)*.2;
-            density=max(density,exp(-dot(d,d)/12.));
-          }
-          float ripple=.92+.08*sin(vGround.x*.7+vGround.y*.8+uTime*.12);
-          gl_FragColor=vec4(uColor,density*ripple*mix(.58,.45,uNight));
-          #include <tonemapping_fragment>
-          #include <colorspace_fragment>
-        }`,
-    });
-    const fogPlane = new T.Mesh(
-      new T.PlaneGeometry(span * 2, span * 2),
-      fogMaterial,
-    );
-    fogPlane.rotation.x = -Math.PI / 2;
-    fogPlane.position.set(
-      center.x,
-      Math.max(...cells.map((c) => c.height)) + 0.55,
-      center.z,
-    );
-    fogPlane.renderOrder = 2;
-    root.add(fogPlane);
-  }
+  const fogMaterial = new T.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    uniforms: fogUniforms,
+    vertexShader: `varying vec2 vNdc;
+      void main(){vNdc=position.xy;gl_Position=vec4(position.xy,0.,1.);}`,
+    fragmentShader: `uniform mat4 uCameraWorld;uniform mat4 uProjectionInverse;
+      uniform vec3 uColor;uniform float uGroundY,uClearZ,uFarZ,uTime,uNight;varying vec2 vNdc;
+      void main(){
+        vec4 view=uProjectionInverse*vec4(vNdc,0.,1.);view/=view.w;
+        vec3 origin=(uCameraWorld*view).xyz;
+        vec3 direction=(uCameraWorld*vec4(0.,0.,-1.,0.)).xyz;
+        vec3 ground=origin+direction*((uGroundY-origin.y)/direction.y);
+        float drift=sin(ground.x*.22+uTime*.04)*.3+sin(ground.x*.55-ground.z*.18)*.15;
+        float density=1.-smoothstep(uFarZ,uClearZ,ground.z+drift);
+        gl_FragColor=vec4(uColor,density*mix(.97,.88,uNight));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const haze = new T.Mesh(new T.PlaneGeometry(2, 2), fogMaterial);
+  haze.frustumCulled = false;
+  haze.renderOrder = 100;
+  root.add(haze);
   // Лёгкие движущиеся полосы ряби поверх пространственного градиента глубины.
   const waterTime = { value: 0 };
   seaMaterial.onBeforeCompile = (shader) => {

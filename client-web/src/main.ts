@@ -56,6 +56,7 @@ async function start() {
       island.visualBounds,
       innerWidth,
       innerHeight,
+      island.framingPoints,
     );
     controls.target.copy(target);
     controls.update();
@@ -108,7 +109,7 @@ async function start() {
   });
   sun.shadow.normalBias = 0.025;
   sun.shadow.bias = -0.00015;
-  const atmosphere = createAtmosphere(cells, center, span);
+  const atmosphere = createAtmosphere(cells, center, span, camera);
   scene.add(atmosphere.root);
   let night = false,
     nightBlend = 0,
