@@ -36,3 +36,31 @@ export function fitIslandCamera(
   camera.updateProjectionMatrix();
   return center;
 }
+
+/** Северный предел позволяет целиком войти в туман даже в отдалённом портретном ракурсе. */
+export function cameraPanBounds(
+  camera: T.OrthographicCamera,
+  target: T.Vector3,
+  map: { centerX: number; centerZ: number; width: number; depth: number },
+  fog: { opaqueZ: number; topY: number },
+) {
+  camera.updateMatrixWorld(true);
+  const direction = camera.getWorldDirection(new T.Vector3());
+  let southFootprint = -Infinity;
+  for (const x of [-1, 1])
+    for (const y of [-1, 1]) {
+      const p = new T.Vector3(x, y, 0).unproject(camera);
+      p.addScaledVector(direction, -p.y / direction.y);
+      southFootprint = Math.max(southFootprint, p.z - target.z);
+    }
+  return {
+    minX: map.centerX - map.width * 0.55,
+    maxX: map.centerX + map.width * 0.55,
+    minZ:
+      fog.opaqueZ -
+      southFootprint -
+      Math.abs(direction.z / direction.y) * fog.topY -
+      2,
+    maxZ: map.centerZ + map.depth * 0.3,
+  };
+}

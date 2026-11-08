@@ -1,6 +1,7 @@
 import * as T from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { axialToWorld } from "./hex";
+import { forestLayout, mountainLayout } from "./scenery";
 import { mapBounds, type Cell, type Building } from "./map-data";
 
 export const HEX_RADIUS = 1.25;
@@ -11,41 +12,30 @@ const buildingModels: Record<Building, string> = {
   warehouse: "buildings/red/building_market_red",
   farm: "buildings/neutral/building_grain",
 };
-const forestModels = ["trees_A_medium", "trees_B_small", "trees_A_small"];
 const rockModels = [
   "mountain_A_grass",
   "mountain_B_grass_trees",
   "mountain_C_grass",
 ];
-function decorationPath(c: Cell, middleR: number) {
+function decorationPath(c: Cell) {
   if (c.building) return buildingModels[c.building];
-  const models =
-    c.type === "forest"
-      ? forestModels
-      : c.type === "rock"
-        ? rockModels
-        : undefined;
-  const variant =
-    c.type === "forest"
-      ? Math.abs(c.q * 13 + c.r * 7) % 4 === 0
-        ? 1
-        : c.r < middleR
-          ? 0
-          : 2
-      : (c.variant ?? 0);
-  return models ? `decoration/nature/${models[variant]}` : undefined;
+  return c.type === "rock"
+    ? `decoration/nature/${rockModels[c.variant ?? 0]}`
+    : undefined;
 }
 export async function createIsland(cells: Cell[]) {
   const root = new T.Group(),
     loader = new GLTFLoader();
-  const middleR = cells.reduce((sum, c) => sum + c.r, 0) / cells.length;
+  const mountains = mountainLayout(cells, HEX_RADIUS);
   const paths = new Set([
     "tiles/base/hex_grass",
     "decoration/nature/rock_single_A",
     "decoration/nature/rock_single_B",
+    "decoration/nature/tree_single_A",
+    "decoration/nature/tree_single_B",
   ]);
   for (const c of cells) {
-    const path = decorationPath(c,middleR);
+    const path = decorationPath(c);
     if (path && c.state === "visible") paths.add(path);
   }
   const models = new Map(
@@ -75,8 +65,6 @@ export async function createIsland(cells: Cell[]) {
       }
     });
   const scale = HEX_RADIUS / (2 / Math.sqrt(3));
-  const layoutBounds = mapBounds(cells, HEX_RADIUS);
-  const north = layoutBounds.centerZ;
   const settlement = cells
     .filter((c) => c.building)
     .map((c) => axialToWorld(c, HEX_RADIUS));
@@ -85,23 +73,30 @@ export async function createIsland(cells: Cell[]) {
     settlement.reduce((n, p) => n + p.z, 0) / Math.max(1, settlement.length),
   );
   const basaltMaterial = new T.MeshStandardMaterial({
-    color: 0x263d3d,
+    color: 0x52615a,
+    emissive: 0x26362e,
+    emissiveIntensity: 0.18,
     roughness: 1,
     flatShading: true,
   });
-  const soilMaterial = new T.MeshStandardMaterial({
-    color: 0x6e6336,
-    roughness: 1,
-  });
   const stratumMaterial = new T.MeshStandardMaterial({
-    color: 0x96804d,
+    color: 0xb19c6b,
     roughness: 1,
   });
   const rockMaterial = new T.MeshStandardMaterial({
-    color: 0x354448,
+    color: 0x485650,
     roughness: 1,
     flatShading: true,
   });
+  const clayMaterials = [0x92764e, 0x9c8257, 0x85734f].map(
+    (color) =>
+      new T.MeshStandardMaterial({
+        color,
+        roughness: 1,
+        emissive: 0x30291c,
+        emissiveIntensity: 0.2,
+      }),
+  );
   const sandMaterial = new T.MeshStandardMaterial({
     color: 0xc7ae6a,
     roughness: 1,
@@ -116,6 +111,12 @@ export async function createIsland(cells: Cell[]) {
     opacity: 0.25,
   });
   const hexGeometry = new T.CylinderGeometry(HEX_RADIUS, HEX_RADIUS, 1, 6);
+  const rockGeometry = new T.CylinderGeometry(
+    HEX_RADIUS * 0.995,
+    HEX_RADIUS * 0.96,
+    1,
+    6,
+  );
   const land = new Set(
     cells.filter((c) => c.type !== "water").map((c) => `${c.q},${c.r}`),
   );
@@ -151,42 +152,40 @@ export async function createIsland(cells: Cell[]) {
       const base = models.get("tiles/base/hex_grass")!.clone(true);
       base.scale.set(scale * 0.997, 0.26, scale * 0.997);
       tile.add(base);
-      const path = decorationPath(cell,middleR);
-      if (path) {
-        const prop = models.get(path)!.clone(true);
-        const seed = Math.abs(cell.q * 17 + cell.r * 31);
-        const rearMountain = cell.type === "rock" && z < north;
-        const propScale = cell.building
-          ? cell.building === "townHall"
-            ? 2.3
-            : cell.building === "farm"
-              ? 1
-              : 1.65
-          : cell.type === "rock"
-            ? rearMountain
-              ? 1.45 + (seed % 3) * 0.16
-              : 0.95
-            : 0.9 + (seed % 5) * 0.1;
-        prop.scale.setScalar(scale * propScale);
-        prop.rotation.y = T.MathUtils.degToRad(
-          (cell.rotation ?? 0) + (cell.type === "forest" ? (seed % 7) * 13 : 0),
-        );
-        if (cell.type === "forest") {
-          // Небольшие смещения и разная высота разбивают совпадающие ряды гексов.
-          prop.position.set(
-            Math.sin(seed * 1.7) * 0.32,
-            0,
-            Math.cos(seed * 2.3) * 0.3,
-          );
-        } else if (cell.building) {
-          // Свободнее расставляем крыши вокруг центра поселения, сохраняя их клетки.
-          prop.position.set(
-            (x - settlementCenter.x) * 0.06,
-            0,
-            (z - settlementCenter.y) * 0.06,
-          );
+      if (cell.type === "forest" && !cell.building) {
+        for (const tree of forestLayout(cell)) {
+          const model = models
+            .get(`decoration/nature/tree_single_${tree.species}`)!
+            .clone(true);
+          model.position.set(tree.x, 0, tree.z);
+          model.scale.setScalar(scale * tree.scale);
+          model.rotation.y = tree.rotation;
+          tile.add(model);
         }
-        tile.add(prop);
+      } else {
+        const path = decorationPath(cell);
+        if (path) {
+          const prop = models.get(path)!.clone(true),
+            mountain = mountains.get(`${cell.q},${cell.r}`);
+          const propScale = cell.building
+            ? cell.building === "townHall"
+              ? 2.3
+              : cell.building === "farm"
+                ? 1
+                : 1.65
+            : (mountain?.scale ?? 1);
+          prop.scale.setScalar(scale * propScale);
+          prop.rotation.y =
+            mountain?.rotation ?? T.MathUtils.degToRad(cell.rotation ?? 0);
+          if (mountain) prop.position.set(mountain.x, 0, mountain.z);
+          else if (cell.building)
+            prop.position.set(
+              (x - settlementCenter.x) * 0.06,
+              0,
+              (z - settlementCenter.y) * 0.06,
+            );
+          tile.add(prop);
+        }
       }
     }
     if (cell.type !== "water") {
@@ -197,17 +196,31 @@ export async function createIsland(cells: Cell[]) {
         radius: number,
         material: T.Material,
       ) => {
-        const mesh = new T.Mesh(hexGeometry, material);
+        const mesh = new T.Mesh(
+          material === basaltMaterial ? rockGeometry : hexGeometry,
+          material,
+        );
         mesh.scale.set(radius, Math.max(0.05, top - bottom), radius);
         mesh.position.y = (top + bottom) / 2 - cell.height;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         tile.add(mesh);
       };
-      const rockTop = cell.height * 0.36;
+      const seed = Math.abs(cell.q * 19 + cell.r * 43);
+      const rockTop = cell.height * (0.22 + (seed % 3) * 0.035);
       layer(-0.22, rockTop, 1.005, basaltMaterial);
-      layer(rockTop - 0.03, cell.height - 0.24, 0.998, soilMaterial);
-      layer(cell.height * 0.53, cell.height * 0.6, 1.001, stratumMaterial);
+      layer(
+        rockTop - 0.03,
+        cell.height - 0.24,
+        0.998,
+        clayMaterials[seed % clayMaterials.length],
+      );
+      layer(
+        cell.height * (0.51 + (seed % 3) * 0.025),
+        cell.height * (0.58 + (seed % 3) * 0.025),
+        1.001,
+        stratumMaterial,
+      );
       const coastal = directions.some(
         ([q, r]) => !land.has(`${cell.q + q},${cell.r + r}`),
       );
@@ -230,12 +243,13 @@ export async function createIsland(cells: Cell[]) {
             0.12 - cell.height,
             Math.cos(angle) * HEX_RADIUS * 1.06,
           );
+          const stoneSize = 2.5 + ((seed + edge * 7) % 5) * 0.55;
           rock.scale.set(
-            3.3 + (edge % 2),
-            3.8 + (cell.q % 2) * 0.8,
-            3.2 + (edge % 2),
+            stoneSize,
+            stoneSize * (0.8 + (edge % 3) * 0.2),
+            stoneSize * 0.9,
           );
-          rock.rotation.y = angle;
+          rock.rotation.y = angle + seed * 0.07;
           rock.traverse((o) => {
             if (o instanceof T.Mesh) {
               o.material = rockMaterial;
