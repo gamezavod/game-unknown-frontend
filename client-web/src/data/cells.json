@@ -1,326 +1,455 @@
 [
   {
-    "q": 1,
+    "q": 0,
     "r": -5,
     "type": "coast",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 120
-  },
-  {
-    "q": 2,
-    "r": -5,
-    "type": "coast",
-    "height": 1.1,
+    "height": 1.61,
     "state": "unexplored",
     "rotation": 300
   },
   {
+    "q": 1,
+    "r": -5,
+    "type": "coast",
+    "height": 1.55,
+    "state": "unexplored",
+    "rotation": 0
+  },
+  {
+    "q": 2,
+    "r": -5,
+    "type": "coast",
+    "height": 1.55,
+    "state": "unexplored",
+    "rotation": 60
+  },
+  {
     "q": 3,
     "r": -5,
     "type": "coast",
-    "height": 1.1,
+    "height": 1.61,
     "state": "unexplored",
     "rotation": 120
   },
   {
-    "q": -1,
-    "r": -4,
-    "type": "coast",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 60
-  },
-  {
-    "q": 0,
-    "r": -4,
-    "type": "coast",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 240
-  },
-  {
-    "q": 1,
-    "r": -4,
-    "type": "grass",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 60
-  },
-  {
-    "q": 2,
-    "r": -4,
-    "type": "grass",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 240
-  },
-  {
-    "q": 3,
-    "r": -4,
-    "type": "coast",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 60
-  },
-  {
     "q": 4,
-    "r": -4,
+    "r": -5,
     "type": "coast",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 240
-  },
-  {
-    "q": -2,
-    "r": -3,
-    "type": "coast",
-    "height": 1.1,
+    "height": 1.55,
     "state": "unexplored",
     "rotation": 180
   },
   {
-    "q": -1,
-    "r": -3,
-    "type": "grass",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 0
-  },
-  {
-    "q": 0,
-    "r": -3,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 180
-  },
-  {
-    "q": 1,
-    "r": -3,
-    "type": "rock",
-    "height": 1.18,
-    "state": "visible",
-    "rotation": 0,
-    "variant": 1
-  },
-  {
-    "q": 2,
-    "r": -3,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 180
-  },
-  {
-    "q": 3,
-    "r": -3,
-    "type": "rock",
-    "height": 1.18,
-    "state": "visible",
-    "rotation": 0,
-    "variant": 2
-  },
-  {
-    "q": 4,
-    "r": -3,
+    "q": 6,
+    "r": -5,
     "type": "coast",
-    "height": 1.1,
+    "height": 1.61,
     "state": "unexplored",
-    "rotation": 180
-  },
-  {
-    "q": 5,
-    "r": -3,
-    "type": "coast",
-    "height": 1.1,
-    "state": "unexplored",
-    "rotation": 0
-  },
-  {
-    "q": -3,
-    "r": -2,
-    "type": "coast",
-    "height": 1.1,
-    "state": "visible",
     "rotation": 300
   },
   {
     "q": -2,
-    "r": -2,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
+    "r": -4,
+    "type": "coast",
+    "height": 1.55,
+    "state": "unexplored",
     "rotation": 120
   },
   {
     "q": -1,
-    "r": -2,
+    "r": -4,
+    "type": "coast",
+    "height": 1.55,
+    "state": "unexplored",
+    "rotation": 180
+  },
+  {
+    "q": 0,
+    "r": -4,
     "type": "rock",
-    "height": 1.18,
-    "state": "visible",
-    "rotation": 300,
-    "variant": 0
-  },
-  {
-    "q": 0,
-    "r": -2,
-    "type": "forest",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 120,
-    "variant": 0
-  },
-  {
-    "q": 1,
-    "r": -2,
-    "type": "forest",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 300,
-    "variant": 1
-  },
-  {
-    "q": 2,
-    "r": -2,
-    "type": "forest",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 120,
-    "variant": 0
-  },
-  {
-    "q": 3,
-    "r": -2,
-    "type": "forest",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 300,
-    "variant": 1
-  },
-  {
-    "q": 4,
-    "r": -2,
-    "type": "coast",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 120
-  },
-  {
-    "q": -4,
-    "r": -1,
-    "type": "coast",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 60
-  },
-  {
-    "q": -3,
-    "r": -1,
-    "type": "forest",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 240,
-    "variant": 0
-  },
-  {
-    "q": -2,
-    "r": -1,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 0,
-    "building": "lumbermill"
-  },
-  {
-    "q": -1,
-    "r": -1,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 240
-  },
-  {
-    "q": 0,
-    "r": -1,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 60
-  },
-  {
-    "q": 1,
-    "r": -1,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 240
-  },
-  {
-    "q": 2,
-    "r": -1,
-    "type": "grass",
-    "height": 1.1,
-    "state": "visible",
-    "rotation": 60
-  },
-  {
-    "q": 3,
-    "r": -1,
-    "type": "forest",
-    "height": 1.1,
+    "height": 1.73,
     "state": "visible",
     "rotation": 240,
     "variant": 2
   },
   {
-    "q": 4,
-    "r": -1,
+    "q": 1,
+    "r": -4,
+    "type": "grass",
+    "height": 1.55,
+    "state": "unexplored",
+    "rotation": 300
+  },
+  {
+    "q": 2,
+    "r": -4,
+    "type": "grass",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 0
+  },
+  {
+    "q": 3,
+    "r": -4,
     "type": "rock",
-    "height": 1.18,
+    "height": 1.73,
     "state": "visible",
     "rotation": 60,
     "variant": 0
   },
   {
-    "q": -4,
-    "r": 0,
+    "q": 4,
+    "r": -4,
+    "type": "rock",
+    "height": 1.67,
+    "state": "visible",
+    "rotation": 120,
+    "variant": 1
+  },
+  {
+    "q": 5,
+    "r": -4,
+    "type": "rock",
+    "height": 1.67,
+    "state": "visible",
+    "rotation": 180,
+    "variant": 2
+  },
+  {
+    "q": 6,
+    "r": -4,
     "type": "coast",
-    "height": 0.98,
+    "height": 1.61,
+    "state": "unexplored",
+    "rotation": 240
+  },
+  {
+    "q": 7,
+    "r": -4,
+    "type": "coast",
+    "height": 1.55,
+    "state": "unexplored",
+    "rotation": 300
+  },
+  {
+    "q": -3,
+    "r": -3,
+    "type": "coast",
+    "height": 1.61,
     "state": "visible",
     "rotation": 0
+  },
+  {
+    "q": -2,
+    "r": -3,
+    "type": "rock",
+    "height": 1.67,
+    "state": "visible",
+    "rotation": 60,
+    "variant": 0
+  },
+  {
+    "q": -1,
+    "r": -3,
+    "type": "rock",
+    "height": 1.67,
+    "state": "visible",
+    "rotation": 120,
+    "variant": 1
+  },
+  {
+    "q": 0,
+    "r": -3,
+    "type": "forest",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 180,
+    "variant": 0
+  },
+  {
+    "q": 1,
+    "r": -3,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 240,
+    "variant": 0
+  },
+  {
+    "q": 2,
+    "r": -3,
+    "type": "grass",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 300
+  },
+  {
+    "q": 3,
+    "r": -3,
+    "type": "grass",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 0
+  },
+  {
+    "q": 4,
+    "r": -3,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 60,
+    "variant": 0
+  },
+  {
+    "q": 5,
+    "r": -3,
+    "type": "rock",
+    "height": 1.67,
+    "state": "visible",
+    "rotation": 120,
+    "variant": 0
+  },
+  {
+    "q": 6,
+    "r": -3,
+    "type": "coast",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 180
+  },
+  {
+    "q": -5,
+    "r": -2,
+    "type": "coast",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 180
+  },
+  {
+    "q": -4,
+    "r": -2,
+    "type": "coast",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 240
+  },
+  {
+    "q": -3,
+    "r": -2,
+    "type": "grass",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 300
+  },
+  {
+    "q": -2,
+    "r": -2,
+    "type": "grass",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 0
+  },
+  {
+    "q": -1,
+    "r": -2,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 60,
+    "variant": 0
+  },
+  {
+    "q": 0,
+    "r": -2,
+    "type": "grass",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 120
+  },
+  {
+    "q": 1,
+    "r": -2,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 180,
+    "variant": 0
+  },
+  {
+    "q": 2,
+    "r": -2,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 240,
+    "variant": 2
+  },
+  {
+    "q": 3,
+    "r": -2,
+    "type": "forest",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 300,
+    "variant": 0
+  },
+  {
+    "q": 4,
+    "r": -2,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 0,
+    "variant": 0
+  },
+  {
+    "q": 5,
+    "r": -2,
+    "type": "coast",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 60
+  },
+  {
+    "q": -6,
+    "r": -1,
+    "type": "coast",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 60
+  },
+  {
+    "q": -5,
+    "r": -1,
+    "type": "coast",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 120
+  },
+  {
+    "q": -4,
+    "r": -1,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 180,
+    "variant": 0
+  },
+  {
+    "q": -3,
+    "r": -1,
+    "type": "forest",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 240,
+    "variant": 1
+  },
+  {
+    "q": -2,
+    "r": -1,
+    "type": "grass",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 300
+  },
+  {
+    "q": -1,
+    "r": -1,
+    "type": "grass",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 0,
+    "building": "lumbermill"
+  },
+  {
+    "q": 0,
+    "r": -1,
+    "type": "grass",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 60
+  },
+  {
+    "q": 1,
+    "r": -1,
+    "type": "grass",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 120
+  },
+  {
+    "q": 2,
+    "r": -1,
+    "type": "forest",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 180,
+    "variant": 0
+  },
+  {
+    "q": 3,
+    "r": -1,
+    "type": "forest",
+    "height": 1.61,
+    "state": "visible",
+    "rotation": 240,
+    "variant": 0
+  },
+  {
+    "q": 4,
+    "r": -1,
+    "type": "grass",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 300
+  },
+  {
+    "q": 5,
+    "r": -1,
+    "type": "coast",
+    "height": 1.55,
+    "state": "visible",
+    "rotation": 0
+  },
+  {
+    "q": -4,
+    "r": 0,
+    "type": "forest",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 120,
+    "variant": 1
   },
   {
     "q": -3,
     "r": 0,
     "type": "forest",
-    "height": 0.98,
+    "height": 1.51,
     "state": "visible",
     "rotation": 180,
-    "variant": 1
+    "variant": 0
   },
   {
     "q": -2,
     "r": 0,
-    "type": "rock",
-    "height": 1.06,
+    "type": "grass",
+    "height": 1.45,
     "state": "visible",
-    "rotation": 0,
-    "variant": 2
+    "rotation": 240
   },
   {
     "q": -1,
     "r": 0,
     "type": "grass",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
-    "rotation": 180
+    "rotation": 300
   },
   {
     "q": 0,
     "r": 0,
     "type": "grass",
-    "height": 0.98,
+    "height": 1.51,
     "state": "visible",
     "rotation": 0,
     "building": "townHall"
@@ -329,24 +458,23 @@
     "q": 1,
     "r": 0,
     "type": "grass",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
-    "rotation": 180
+    "rotation": 60
   },
   {
     "q": 2,
     "r": 0,
     "type": "grass",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
-    "rotation": 0,
-    "building": "home"
+    "rotation": 120
   },
   {
     "q": 3,
     "r": 0,
     "type": "grass",
-    "height": 0.98,
+    "height": 1.51,
     "state": "visible",
     "rotation": 180
   },
@@ -354,124 +482,119 @@
     "q": 4,
     "r": 0,
     "type": "coast",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
-    "rotation": 0
-  },
-  {
-    "q": -5,
-    "r": 1,
-    "type": "coast",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 120
+    "rotation": 240
   },
   {
     "q": -4,
     "r": 1,
     "type": "forest",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
-    "rotation": 300,
+    "rotation": 60,
     "variant": 0
   },
   {
     "q": -3,
     "r": 1,
     "type": "forest",
-    "height": 0.98,
+    "height": 1.51,
     "state": "visible",
     "rotation": 120,
-    "variant": 2
+    "variant": 0
   },
   {
     "q": -2,
     "r": 1,
     "type": "forest",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
-    "rotation": 300,
-    "variant": 1
+    "rotation": 180,
+    "variant": 0
   },
   {
     "q": -1,
     "r": 1,
     "type": "grass",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 120
-  },
-  {
-    "q": 0,
-    "r": 1,
-    "type": "grass",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 300
-  },
-  {
-    "q": 1,
-    "r": 1,
-    "type": "grass",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 120
-  },
-  {
-    "q": 2,
-    "r": 1,
-    "type": "grass",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 300
-  },
-  {
-    "q": 3,
-    "r": 1,
-    "type": "coast",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 120
-  },
-  {
-    "q": -4,
-    "r": 2,
-    "type": "coast",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 240
-  },
-  {
-    "q": -3,
-    "r": 2,
-    "type": "forest",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 60,
-    "variant": 2
-  },
-  {
-    "q": -2,
-    "r": 2,
-    "type": "grass",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 240
-  },
-  {
-    "q": -1,
-    "r": 2,
-    "type": "grass",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
     "rotation": 0,
     "building": "warehouse"
   },
   {
     "q": 0,
+    "r": 1,
+    "type": "grass",
+    "height": 1.51,
+    "state": "visible",
+    "rotation": 300
+  },
+  {
+    "q": 1,
+    "r": 1,
+    "type": "grass",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 0,
+    "building": "home"
+  },
+  {
+    "q": 2,
+    "r": 1,
+    "type": "grass",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 60
+  },
+  {
+    "q": 3,
+    "r": 1,
+    "type": "coast",
+    "height": 1.51,
+    "state": "visible",
+    "rotation": 120
+  },
+  {
+    "q": -4,
+    "r": 2,
+    "type": "rock",
+    "height": 1.57,
+    "state": "visible",
+    "rotation": 0,
+    "variant": 1
+  },
+  {
+    "q": -3,
+    "r": 2,
+    "type": "forest",
+    "height": 1.51,
+    "state": "visible",
+    "rotation": 60,
+    "variant": 0
+  },
+  {
+    "q": -2,
+    "r": 2,
+    "type": "forest",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 120,
+    "variant": 1
+  },
+  {
+    "q": -1,
     "r": 2,
     "type": "grass",
-    "height": 0.98,
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 180
+  },
+  {
+    "q": 0,
+    "r": 2,
+    "type": "grass",
+    "height": 1.51,
     "state": "visible",
     "rotation": 240
   },
@@ -479,7 +602,7 @@
     "q": 1,
     "r": 2,
     "type": "grass",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
     "rotation": 0,
     "building": "farm"
@@ -487,76 +610,125 @@
   {
     "q": 2,
     "r": 2,
-    "type": "forest",
-    "height": 0.98,
+    "type": "coast",
+    "height": 1.45,
     "state": "visible",
-    "rotation": 240,
+    "rotation": 0
+  },
+  {
+    "q": -5,
+    "r": 3,
+    "type": "coast",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 0
+  },
+  {
+    "q": -4,
+    "r": 3,
+    "type": "rock",
+    "height": 1.57,
+    "state": "visible",
+    "rotation": 300,
     "variant": 2
   },
   {
     "q": -3,
     "r": 3,
     "type": "coast",
-    "height": 0.98,
+    "height": 1.51,
     "state": "visible",
     "rotation": 0
   },
   {
     "q": -2,
     "r": 3,
+    "type": "coast",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 60
+  },
+  {
+    "q": -1,
+    "r": 3,
     "type": "forest",
-    "height": 0.98,
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 120,
+    "variant": 0
+  },
+  {
+    "q": 0,
+    "r": 3,
+    "type": "forest",
+    "height": 1.51,
     "state": "visible",
     "rotation": 180,
     "variant": 0
   },
   {
-    "q": -1,
+    "q": 1,
     "r": 3,
-    "type": "grass",
-    "height": 0.98,
+    "type": "coast",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 240
+  },
+  {
+    "q": -5,
+    "r": 4,
+    "type": "coast",
+    "height": 1.45,
     "state": "visible",
     "rotation": 0
   },
   {
-    "q": 0,
-    "r": 3,
-    "type": "forest",
-    "height": 0.98,
-    "state": "visible",
-    "rotation": 180,
-    "variant": 1
-  },
-  {
-    "q": 1,
-    "r": 3,
+    "q": -4,
+    "r": 4,
     "type": "coast",
-    "height": 0.98,
+    "height": 1.45,
     "state": "visible",
     "rotation": 0
   },
   {
     "q": -2,
     "r": 4,
-    "type": "coast",
-    "height": 0.98,
+    "type": "forest",
+    "height": 1.45,
     "state": "visible",
-    "rotation": 120
+    "rotation": 0,
+    "variant": 0
   },
   {
     "q": -1,
     "r": 4,
-    "type": "coast",
-    "height": 0.98,
+    "type": "grass",
+    "height": 1.45,
     "state": "visible",
-    "rotation": 300
+    "rotation": 60
   },
   {
     "q": 0,
     "r": 4,
     "type": "coast",
-    "height": 0.98,
+    "height": 1.51,
     "state": "visible",
     "rotation": 120
+  },
+  {
+    "q": -2,
+    "r": 5,
+    "type": "coast",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 300
+  },
+  {
+    "q": -1,
+    "r": 5,
+    "type": "coast",
+    "height": 1.45,
+    "state": "visible",
+    "rotation": 0
   }
 ]

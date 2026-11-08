@@ -362,3 +362,33 @@ footer b {
     display: none;
   }
 }
+
+/* Первый кадр посвящён острову; инструменты доступны по одной кнопке. */
+#view-tools > summary {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  list-style: none;
+  border: 1px solid #d0e0cf40;
+  border-radius: 50%;
+  color: #e1e8d6aa;
+  background: #133f4833;
+  font-size: 18px;
+  z-index: 10;
+}
+#view-tools > summary::-webkit-details-marker {
+  display: none;
+}
+#view-tools[open] > summary {
+  bottom: auto;
+  top: 90px;
+  background: #e8ecdadf;
+  color: #3e5747;
+}
+#view-tools:not([open]) > :not(summary) {
+  display: none !important;
+}

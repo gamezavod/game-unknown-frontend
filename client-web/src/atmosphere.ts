@@ -18,8 +18,8 @@ export function createAtmosphere(
   seaGeometry.translate(center.x, -0.03, center.z);
   const positions = seaGeometry.getAttribute("position"),
     colors: number[] = [];
-  const deep = new T.Color(0x165a82),
-    shallow = new T.Color(0x48a4ab),
+  const deep = new T.Color(0x0b4c62),
+    shallow = new T.Color(0x3b9b98),
     color = new T.Color();
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i),
@@ -56,53 +56,81 @@ export function createAtmosphere(
   });
   const waves = new T.LineSegments(wavesGeometry, wavesMaterial);
   root.add(waves);
-  // Несколько перекрывающихся мягких объёмов над каждой неисследованной клеткой.
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 128;
-  const ctx = canvas.getContext("2d")!,
-    gradient = ctx.createRadialGradient(64, 64, 5, 64, 64, 64);
-  gradient.addColorStop(0, "rgba(220,232,211,1)");
-  gradient.addColorStop(0.4, "rgba(220,232,211,.94)");
-  gradient.addColorStop(0.75, "rgba(220,232,211,.42)");
-  gradient.addColorStop(1, "rgba(220,232,211,0)");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 128, 128);
-  const mistMaterial = new T.SpriteMaterial({
-    map: new T.CanvasTexture(canvas),
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: false,
-    depthTest: false,
-    color: 0xe4ead9,
-  });
-  const clouds: { sprite: T.Sprite; baseY: number; phase: number }[] = [];
-  for (const c of cells) {
-    if (c.state !== "unexplored") continue;
-    const p = axialToWorld(c, HEX_RADIUS);
-    for (let i = 0; i < 3; i++) {
-      const cloud = new T.Sprite(mistMaterial);
-      const baseY = c.height + 0.12 + i * 0.35;
-      cloud.position.set(
-        p.x + Math.sin(i * 2.4 + c.q) * 0.45,
-        baseY,
-        p.z + Math.cos(i * 2.4 + c.r) * 0.4,
-      );
-      cloud.scale.set(HEX_RADIUS * 3.4, HEX_RADIUS * 2.5, 1);
-      root.add(cloud);
-      clouds.push({ sprite: cloud, baseY, phase: c.q * 0.7 + c.r * 0.4 + i });
-    }
+  // Одна полупрозрачная пелена: маски соседних клеток объединяются максимумом,
+  // поэтому перекрытие не превращается в непрозрачную белую «вату».
+  const hidden = cells
+    .filter((c) => c.state === "unexplored")
+    .map((c) => axialToWorld(c, HEX_RADIUS));
+  const dayMist = new T.Color(0xb5c6b9),
+    nightMist = new T.Color(0x668c9c);
+  const fogUniforms = {
+    uColor: { value: dayMist.clone() },
+    uTime: { value: 0 },
+    uNight: { value: 0 },
+    uCells: { value: hidden.map((p) => new T.Vector2(p.x, p.z)) },
+  };
+  if (hidden.length) {
+    const fogMaterial = new T.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: T.DoubleSide,
+      uniforms: fogUniforms,
+      vertexShader: `varying vec2 vGround;
+        void main(){vec4 world=modelMatrix*vec4(position,1.);vGround=world.xz;gl_Position=projectionMatrix*viewMatrix*world;}`,
+      fragmentShader: `uniform vec3 uColor; uniform float uTime; uniform float uNight;
+        uniform vec2 uCells[${hidden.length}];varying vec2 vGround;
+        void main(){float density=0.;
+          for(int i=0;i<${hidden.length};i++){
+            vec2 d=vGround-uCells[i];d.x+=sin(vGround.y*.6+uTime*.08)*.2;
+            density=max(density,exp(-dot(d,d)/12.));
+          }
+          float ripple=.92+.08*sin(vGround.x*.7+vGround.y*.8+uTime*.12);
+          gl_FragColor=vec4(uColor,density*ripple*mix(.58,.45,uNight));
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+    });
+    const fogPlane = new T.Mesh(
+      new T.PlaneGeometry(span * 2, span * 2),
+      fogMaterial,
+    );
+    fogPlane.rotation.x = -Math.PI / 2;
+    fogPlane.position.set(
+      center.x,
+      Math.max(...cells.map((c) => c.height)) + 0.55,
+      center.z,
+    );
+    fogPlane.renderOrder = 2;
+    root.add(fogPlane);
   }
-  const dayMist = new T.Color(0xe4ead9),
-    nightMist = new T.Color(0x6b91a2);
+  // Лёгкие движущиеся полосы ряби поверх пространственного градиента глубины.
+  const waterTime = { value: 0 };
+  seaMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uWaterTime = waterTime;
+    shader.vertexShader =
+      "varying vec2 vSea;\n" +
+      shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvSea=position.xz;",
+      );
+    shader.fragmentShader =
+      "uniform float uWaterTime; varying vec2 vSea;\n" +
+      shader.fragmentShader.replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+      float waterRipple=sin(vSea.x*2.7+vSea.y*.5+uWaterTime*.45)*sin(vSea.y*1.6-uWaterTime*.28);
+      diffuseColor.rgb*=1.+waterRipple*.035;`,
+      );
+  };
   return {
     root,
     update(time: number, night: number) {
       waves.position.x = Math.sin(time * 0.18) * 0.12;
       wavesMaterial.opacity = T.MathUtils.lerp(0.17, 0.09, night);
-      mistMaterial.color.copy(dayMist).lerp(nightMist, night);
-      mistMaterial.opacity = T.MathUtils.lerp(0.72, 0.68, night);
-      for (const c of clouds)
-        c.sprite.position.y = c.baseY + Math.sin(time * 0.25 + c.phase) * 0.07;
+      fogUniforms.uColor.value.copy(dayMist).lerp(nightMist, night);
+      fogUniforms.uTime.value = time;
+      fogUniforms.uNight.value = night;
+      waterTime.value = time;
     },
   };
 }

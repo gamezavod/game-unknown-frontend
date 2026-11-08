@@ -11,7 +11,7 @@ export function fitIslandCamera(
   const span = bounds.getSize(new T.Vector3()).length();
   camera.position
     .copy(center)
-    .addScaledVector(new T.Vector3(0.12, 1.45, 1.75).normalize(), span * 3);
+    .addScaledVector(new T.Vector3(0.25, 2.2, 1.6).normalize(), span * 3);
   camera.lookAt(center);
   camera.updateMatrixWorld(true);
   const viewBounds = bounds.clone().applyMatrix4(camera.matrixWorldInverse);
@@ -27,7 +27,7 @@ export function fitIslandCamera(
   camera.left = -halfHeight * aspect;
   camera.right = halfHeight * aspect;
   // На коротком портретном экране оставляем воду и над выбранной карточкой.
-  const verticalOffset = width < 600 && height < 650 ? -halfHeight * .13 : 0;
+  const verticalOffset = width < 600 && height < 650 ? -halfHeight * 0.13 : 0;
   camera.top = halfHeight + verticalOffset;
   camera.bottom = -halfHeight + verticalOffset;
   camera.zoom = 1;
