@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#287f8c" />
+    <meta name="theme-color" content="#124b5c" />
     <link rel="icon" href="/island.svg" type="image/svg+xml" />
     <title>Свой остров — Первый берег</title>
   </head>
@@ -17,12 +17,8 @@
       aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Выбор клетки также доступен в списке."
     ></canvas>
     <header>
-      <div class="eyebrow">
-        <span class="brand-mark">⬡</span> СВОЙ ОСТРОВ
-        <span class="divider">/</span> МИР 01
-      </div>
+      <div class="eyebrow">⬡ СВОЙ ОСТРОВ</div>
       <h1>Первый берег<span>.</span></h1>
-      <p>Место, где начинается ваша история</p>
     </header>
     <div class="time-panel">
       <button id="time-toggle" aria-pressed="false" title="Сменить день и ночь">
@@ -30,17 +26,9 @@
       ><label><input type="checkbox" id="auto-time" /> Автосмена</label>
     </div>
     <aside aria-label="Исследование острова">
-      <div class="panel-heading">
-        <span class="eyebrow">ВАШ ОСТРОВ</span
-        ><span class="live-dot" title="Карта доступна"></span>
-      </div>
-      <h2>Тихая гавань</h2>
-      <p id="map-count" class="map-count">Загружаем карту…</p>
-      <div class="panel-rule"></div>
       <div id="selection-hint">
-        <span class="hex-icon">⌖</span>
-        <h3>Присмотритесь к острову</h3>
-        <p>Коснитесь клетки, чтобы узнать,<br />что на ней находится.</p>
+        <h2>Тихая гавань</h2>
+        <p>Коснитесь участка на острове</p>
       </div>
       <div id="selection" aria-live="polite" hidden>
         <span id="cell-coordinates" class="eyebrow"></span>
@@ -56,17 +44,18 @@
           </div>
         </dl>
       </div>
-      <label class="select-label" for="cell-select">Найти клетку</label
-      ><select id="cell-select">
-        <option value="">Выберите участок…</option>
-      </select>
-      <div class="legend">
-        <span><i class="grass"></i>Луг</span
-        ><span><i class="forest"></i>Лес</span
-        ><span><i class="rock"></i>Горы</span
-        ><span><i class="coast"></i>Берег</span>
+      <div class="panel-bottom">
+        <span id="map-count">Загружаем карту…</span>
+        <details class="lookup">
+          <summary aria-label="Открыть список клеток">Участки</summary>
+          <div class="lookup-content">
+            <label for="cell-select">Найти клетку</label
+            ><select id="cell-select">
+              <option value="">Выберите участок…</option>
+            </select>
+          </div>
+        </details>
       </div>
-      <p class="note">Маленький остров. Большое начало.</p>
     </aside>
     <nav class="camera-controls" aria-label="Камера">
       <button id="zoom-in" aria-label="Приблизить">+</button
@@ -76,11 +65,9 @@
       </button>
     </nav>
     <footer>
-      <span class="status-dot"></span><span>Перетащите карту</span><b>·</b
-      ><span>Разведите пальцы для масштаба</span><b>·</b
-      ><span>Коснитесь клетки</span>
+      Перетащите карту <b>·</b> Разведите пальцы для масштаба <b>·</b> Коснитесь
+      клетки
     </footer>
-    <div class="world-label">ПЕРВЫЙ БЕРЕГ <span>ТИХИЙ ОКЕАН</span></div>
     <div id="loading" role="status">
       Открываем ваш остров<span>Загружаем берег, лес и маленькие дома…</span>
     </div>

@@ -16,6 +16,9 @@ test("проверка контракта отклоняет повреждён�
     [{ ...cell, height: NaN }],
     [{ ...cell, building: "unknown" }],
     [{ ...cell, type: "constructor" }],
+    [{ ...cell, variant: -1 }],
+    [{ ...cell, variant: 3 }],
+    [{ ...cell, variant: 0.5 }],
   ])
     expect(() => parseCells(value)).toThrow();
   expect(parseCells([cell])).toEqual([cell]);
