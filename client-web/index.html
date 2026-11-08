@@ -16,58 +16,65 @@
       tabindex="0"
       aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Выбор клетки также доступен в списке."
     ></canvas>
-    <header>
-      <div class="eyebrow">⬡ СВОЙ ОСТРОВ</div>
-      <h1>Первый берег<span>.</span></h1>
-    </header>
-    <div class="time-panel">
-      <button id="time-toggle" aria-pressed="false" title="Сменить день и ночь">
-        ☀ День</button
-      ><label><input type="checkbox" id="auto-time" /> Автосмена</label>
-    </div>
-    <aside aria-label="Исследование острова">
-      <div id="selection-hint">
-        <h2>Тихая гавань</h2>
-        <p>Коснитесь участка на острове</p>
+    <details id="view-tools">
+      <summary aria-label="Показать управление картой">☰</summary>
+      <header>
+        <div class="eyebrow">⬡ СВОЙ ОСТРОВ</div>
+        <h1>Первый берег<span>.</span></h1>
+      </header>
+      <div class="time-panel">
+        <button
+          id="time-toggle"
+          aria-pressed="false"
+          title="Сменить день и ночь"
+        >
+          ☀ День</button
+        ><label><input type="checkbox" id="auto-time" /> Автосмена</label>
       </div>
-      <div id="selection" aria-live="polite" hidden>
-        <span id="cell-coordinates" class="eyebrow"></span>
-        <h3 id="cell-title"></h3>
-        <dl>
-          <div>
-            <dt>Местность</dt>
-            <dd id="cell-type"></dd>
-          </div>
-          <div>
-            <dt>На участке</dt>
-            <dd id="cell-state"></dd>
-          </div>
-        </dl>
-      </div>
-      <div class="panel-bottom">
-        <span id="map-count">Загружаем карту…</span>
-        <details class="lookup">
-          <summary aria-label="Открыть список клеток">Участки</summary>
-          <div class="lookup-content">
-            <label for="cell-select">Найти клетку</label
-            ><select id="cell-select">
-              <option value="">Выберите участок…</option>
-            </select>
-          </div>
-        </details>
-      </div>
-    </aside>
-    <nav class="camera-controls" aria-label="Камера">
-      <button id="zoom-in" aria-label="Приблизить">+</button
-      ><button id="zoom-out" aria-label="Отдалить">−</button><span></span
-      ><button id="reset" aria-label="Вернуть камеру" title="Весь остров">
-        ⌖
-      </button>
-    </nav>
-    <footer>
-      Перетащите карту <b>·</b> Разведите пальцы для масштаба <b>·</b> Коснитесь
-      клетки
-    </footer>
+      <aside aria-label="Исследование острова">
+        <div id="selection-hint">
+          <h2>Тихая гавань</h2>
+          <p>Коснитесь участка на острове</p>
+        </div>
+        <div id="selection" aria-live="polite" hidden>
+          <span id="cell-coordinates" class="eyebrow"></span>
+          <h3 id="cell-title"></h3>
+          <dl>
+            <div>
+              <dt>Местность</dt>
+              <dd id="cell-type"></dd>
+            </div>
+            <div>
+              <dt>На участке</dt>
+              <dd id="cell-state"></dd>
+            </div>
+          </dl>
+        </div>
+        <div class="panel-bottom">
+          <span id="map-count">Загружаем карту…</span>
+          <details class="lookup">
+            <summary aria-label="Открыть список клеток">Участки</summary>
+            <div class="lookup-content">
+              <label for="cell-select">Найти клетку</label
+              ><select id="cell-select">
+                <option value="">Выберите участок…</option>
+              </select>
+            </div>
+          </details>
+        </div>
+      </aside>
+      <nav class="camera-controls" aria-label="Камера">
+        <button id="zoom-in" aria-label="Приблизить">+</button
+        ><button id="zoom-out" aria-label="Отдалить">−</button><span></span
+        ><button id="reset" aria-label="Вернуть камеру" title="Весь остров">
+          ⌖
+        </button>
+      </nav>
+      <footer>
+        Перетащите карту <b>·</b> Разведите пальцы для масштаба
+        <b>·</b> Коснитесь клетки
+      </footer>
+    </details>
     <div id="loading" role="status">
       Открываем ваш остров<span>Загружаем берег, лес и маленькие дома…</span>
     </div>

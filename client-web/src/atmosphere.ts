@@ -8,6 +8,7 @@ export function createAtmosphere(
   cells: Cell[],
   center: T.Vector3,
   span: number,
+  camera: T.OrthographicCamera,
 ) {
   const root = new T.Group();
   const land = cells
@@ -18,8 +19,8 @@ export function createAtmosphere(
   seaGeometry.translate(center.x, -0.03, center.z);
   const positions = seaGeometry.getAttribute("position"),
     colors: number[] = [];
-  const deep = new T.Color(0x165a82),
-    shallow = new T.Color(0x48a4ab),
+  const deep = new T.Color(0x0b4c62),
+    shallow = new T.Color(0x3b9b98),
     color = new T.Color();
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i),
@@ -56,53 +57,79 @@ export function createAtmosphere(
   });
   const waves = new T.LineSegments(wavesGeometry, wavesMaterial);
   root.add(waves);
-  // Несколько перекрывающихся мягких объёмов над каждой неисследованной клеткой.
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 128;
-  const ctx = canvas.getContext("2d")!,
-    gradient = ctx.createRadialGradient(64, 64, 5, 64, 64, 64);
-  gradient.addColorStop(0, "rgba(220,232,211,1)");
-  gradient.addColorStop(0.4, "rgba(220,232,211,.94)");
-  gradient.addColorStop(0.75, "rgba(220,232,211,.42)");
-  gradient.addColorStop(1, "rgba(220,232,211,0)");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 128, 128);
-  const mistMaterial = new T.SpriteMaterial({
-    map: new T.CanvasTexture(canvas),
+  // Светлая атмосферная перспектива по глубине сцены. Луч экранного пикселя
+  // пересекается с землёй; дымка следует карте при перемещении и масштабировании.
+  const hidden = cells
+    .filter((c) => c.state === "unexplored")
+    .map((c) => axialToWorld(c, HEX_RADIUS));
+  const farZ = hidden.length
+    ? Math.max(...hidden.map((p) => p.z))
+    : center.z - span * 0.35;
+  const dayMist = new T.Color(0xb9d0ca),
+    nightMist = new T.Color(0x50778b);
+  const fogUniforms = {
+    uColor: { value: dayMist.clone() },
+    uTime: { value: 0 },
+    uNight: { value: 0 },
+    uCameraWorld: { value: camera.matrixWorld },
+    uProjectionInverse: { value: camera.projectionMatrixInverse },
+    uGroundY: { value: cells.reduce((s, c) => s + c.height, 0) / cells.length },
+    uClearZ: { value: farZ + span * 0.28 },
+    uFarZ: { value: farZ - span * 0.2 },
+  };
+  const fogMaterial = new T.ShaderMaterial({
     transparent: true,
-    opacity: 0.72,
-    depthWrite: false,
     depthTest: false,
-    color: 0xe4ead9,
+    depthWrite: false,
+    uniforms: fogUniforms,
+    vertexShader: `varying vec2 vNdc;
+      void main(){vNdc=position.xy;gl_Position=vec4(position.xy,0.,1.);}`,
+    fragmentShader: `uniform mat4 uCameraWorld;uniform mat4 uProjectionInverse;
+      uniform vec3 uColor;uniform float uGroundY,uClearZ,uFarZ,uTime,uNight;varying vec2 vNdc;
+      void main(){
+        vec4 view=uProjectionInverse*vec4(vNdc,0.,1.);view/=view.w;
+        vec3 origin=(uCameraWorld*view).xyz;
+        vec3 direction=(uCameraWorld*vec4(0.,0.,-1.,0.)).xyz;
+        vec3 ground=origin+direction*((uGroundY-origin.y)/direction.y);
+        float drift=sin(ground.x*.22+uTime*.04)*.3+sin(ground.x*.55-ground.z*.18)*.15;
+        float density=1.-smoothstep(uFarZ,uClearZ,ground.z+drift);
+        gl_FragColor=vec4(uColor,density*mix(.97,.88,uNight));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
   });
-  const clouds: { sprite: T.Sprite; baseY: number; phase: number }[] = [];
-  for (const c of cells) {
-    if (c.state !== "unexplored") continue;
-    const p = axialToWorld(c, HEX_RADIUS);
-    for (let i = 0; i < 3; i++) {
-      const cloud = new T.Sprite(mistMaterial);
-      const baseY = c.height + 0.12 + i * 0.35;
-      cloud.position.set(
-        p.x + Math.sin(i * 2.4 + c.q) * 0.45,
-        baseY,
-        p.z + Math.cos(i * 2.4 + c.r) * 0.4,
+  const haze = new T.Mesh(new T.PlaneGeometry(2, 2), fogMaterial);
+  haze.frustumCulled = false;
+  haze.renderOrder = 100;
+  root.add(haze);
+  // Лёгкие движущиеся полосы ряби поверх пространственного градиента глубины.
+  const waterTime = { value: 0 };
+  seaMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uWaterTime = waterTime;
+    shader.vertexShader =
+      "varying vec2 vSea;\n" +
+      shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvSea=position.xz;",
       );
-      cloud.scale.set(HEX_RADIUS * 3.4, HEX_RADIUS * 2.5, 1);
-      root.add(cloud);
-      clouds.push({ sprite: cloud, baseY, phase: c.q * 0.7 + c.r * 0.4 + i });
-    }
-  }
-  const dayMist = new T.Color(0xe4ead9),
-    nightMist = new T.Color(0x6b91a2);
+    shader.fragmentShader =
+      "uniform float uWaterTime; varying vec2 vSea;\n" +
+      shader.fragmentShader.replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+      float waterRipple=sin(vSea.x*2.7+vSea.y*.5+uWaterTime*.45)*sin(vSea.y*1.6-uWaterTime*.28);
+      diffuseColor.rgb*=1.+waterRipple*.035;`,
+      );
+  };
   return {
     root,
     update(time: number, night: number) {
       waves.position.x = Math.sin(time * 0.18) * 0.12;
       wavesMaterial.opacity = T.MathUtils.lerp(0.17, 0.09, night);
-      mistMaterial.color.copy(dayMist).lerp(nightMist, night);
-      mistMaterial.opacity = T.MathUtils.lerp(0.72, 0.68, night);
-      for (const c of clouds)
-        c.sprite.position.y = c.baseY + Math.sin(time * 0.25 + c.phase) * 0.07;
+      fogUniforms.uColor.value.copy(dayMist).lerp(nightMist, night);
+      fogUniforms.uTime.value = time;
+      fogUniforms.uNight.value = night;
+      waterTime.value = time;
     },
   };
 }

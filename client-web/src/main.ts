@@ -56,6 +56,7 @@ async function start() {
       island.visualBounds,
       innerWidth,
       innerHeight,
+      island.framingPoints,
     );
     controls.target.copy(target);
     controls.update();
@@ -89,9 +90,9 @@ async function start() {
     } else return;
     e.preventDefault();
   });
-  const sky = new T.HemisphereLight(0xc6e3e2, 0x354329, 1.15);
+  const sky = new T.HemisphereLight(0xbad9db, 0x3f4f30, 1.3);
   scene.add(sky);
-  const sun = new T.DirectionalLight(0xffefc5, 3.2);
+  const sun = new T.DirectionalLight(0xffe4ad, 3.4);
   sun.position
     .copy(center)
     .add(new T.Vector3(-span * 0.65, span * 0.85, -span * 0.45));
@@ -108,7 +109,7 @@ async function start() {
   });
   sun.shadow.normalBias = 0.025;
   sun.shadow.bias = -0.00015;
-  const atmosphere = createAtmosphere(cells, center, span);
+  const atmosphere = createAtmosphere(cells, center, span, camera);
   scene.add(atmosphere.root);
   let night = false,
     nightBlend = 0,
@@ -196,7 +197,7 @@ async function start() {
   resize();
   const dayBackground = new T.Color(0x9bbdb4),
     nightBackground = new T.Color(0x172d49);
-  const daySun = new T.Color(0xffefc5),
+  const daySun = new T.Color(0xffe4ad),
     nightSun = new T.Color(0xa3c5ff);
   const previousTarget = new T.Vector3(),
     targetCorrection = new T.Vector3();
@@ -216,8 +217,8 @@ async function start() {
       .lerp(nightBackground, nightBlend);
     (scene.fog as T.Fog).color.copy(scene.background as T.Color);
     sun.color.copy(daySun).lerp(nightSun, nightBlend);
-    sun.intensity = T.MathUtils.lerp(3.2, 1.2, nightBlend);
-    sky.intensity = T.MathUtils.lerp(1.15, 0.6, nightBlend);
+    sun.intensity = T.MathUtils.lerp(3.4, 1.2, nightBlend);
+    sky.intensity = T.MathUtils.lerp(1.3, 0.6, nightBlend);
     renderer.toneMappingExposure = T.MathUtils.lerp(1.08, 0.95, nightBlend);
     atmosphere.update(clock.elapsedTime, nightBlend);
     controls.update();
