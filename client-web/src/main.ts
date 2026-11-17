@@ -15,12 +15,40 @@ import {
 } from "./selection";
 import { TapGesture } from "./gestures";
 import { mountMatchThree } from "./match3-ui";
+import { match3Icons } from "./penpot-emoji";
+import { penpotMatch3Icons } from "./penpot-match3-icons";
 import "@fontsource-variable/inter-tight";
 import "./style.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
 const $ = (id: string) => document.getElementById(id)!;
+
+function assetUrl(asset: string) {
+  return asset.startsWith("data:") ? asset : `data:image/png;base64,${asset}`;
+}
+
+function mountHomeHud() {
+  const icons = {
+    wood: match3Icons.log,
+    food: penpotMatch3Icons.wheat,
+    stone: penpotMatch3Icons.rock,
+    iron: penpotMatch3Icons.pickaxe,
+    happy: penpotMatch3Icons.happy,
+  };
+  document.querySelectorAll<HTMLImageElement>("[data-home-icon]").forEach((image) => {
+    image.src = assetUrl(icons[image.dataset.homeIcon as keyof typeof icons]);
+  });
+  window.addEventListener("match3:warehouse", (event) => {
+    const detail = (event as CustomEvent<Record<string, number>>).detail;
+    Object.entries(detail).forEach(([resource, value]) => {
+      const element = document.querySelector<HTMLElement>(`[data-home-resource="${resource}"]`);
+      if (element) element.textContent = String(value);
+    });
+  });
+}
+
 async function start() {
+  mountHomeHud();
   mountMatchThree();
   const cells = await demoMapSource.load();
   const island = await createIsland(cells);
