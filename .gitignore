@@ -6,3 +6,11 @@ coverage/
 *.log
 .DS_Store
 work/
+
+# Локальные отчёты и данные визуальной проверки
+/audits/
+/client-web/dev/
+
+# Исходный архив и полная распаковка: игра использует public/kaykit/
+/client-web/public/assets.zip
+/client-web/public/assets/

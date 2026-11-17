@@ -1,3 +1,4 @@
+import { renderArt } from "./ui-art";
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createIsland } from "./island";
@@ -18,17 +19,15 @@ import { mountMatchThree } from "./match3-ui";
 import { penpotHomeIcons } from "./penpot-home-icons";
 import "@fontsource-variable/inter-tight";
 import "./style.css";
+import "./penpot-layout.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
 const $ = (id: string) => document.getElementById(id)!;
 
-function assetUrl(asset: string) {
-  return asset.startsWith("data:") ? asset : `data:image/png;base64,${asset}`;
-}
-
 function mountHomeHud() {
   document.querySelectorAll<HTMLImageElement>("[data-home-icon]").forEach((image) => {
-    image.src = assetUrl(penpotHomeIcons[image.dataset.homeIcon as keyof typeof penpotHomeIcons]);
+    const name = image.dataset.homeIcon as keyof typeof penpotHomeIcons;
+    image.outerHTML = renderArt(penpotHomeIcons[name], `home-art home-icon--${name}`);
   });
   window.addEventListener("match3:warehouse", (event) => {
     const detail = (event as CustomEvent<Record<string, number>>).detail;
