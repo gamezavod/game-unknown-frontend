@@ -15,8 +15,7 @@ import {
 } from "./selection";
 import { TapGesture } from "./gestures";
 import { mountMatchThree } from "./match3-ui";
-import { match3Icons } from "./penpot-emoji";
-import { penpotMatch3Icons } from "./penpot-match3-icons";
+import { penpotHomeIcons } from "./penpot-home-icons";
 import "@fontsource-variable/inter-tight";
 import "./style.css";
 
@@ -28,15 +27,8 @@ function assetUrl(asset: string) {
 }
 
 function mountHomeHud() {
-  const icons = {
-    wood: match3Icons.log,
-    food: penpotMatch3Icons.wheat,
-    stone: penpotMatch3Icons.rock,
-    iron: penpotMatch3Icons.pickaxe,
-    happy: penpotMatch3Icons.happy,
-  };
   document.querySelectorAll<HTMLImageElement>("[data-home-icon]").forEach((image) => {
-    image.src = assetUrl(icons[image.dataset.homeIcon as keyof typeof icons]);
+    image.src = assetUrl(penpotHomeIcons[image.dataset.homeIcon as keyof typeof penpotHomeIcons]);
   });
   window.addEventListener("match3:warehouse", (event) => {
     const detail = (event as CustomEvent<Record<string, number>>).detail;
