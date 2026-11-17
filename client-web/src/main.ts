@@ -14,11 +14,14 @@ import {
   canPickCell,
 } from "./selection";
 import { TapGesture } from "./gestures";
+import { mountMatchThree } from "./match3-ui";
+import "@fontsource-variable/inter-tight";
 import "./style.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
 const $ = (id: string) => document.getElementById(id)!;
 async function start() {
+  mountMatchThree();
   const cells = await demoMapSource.load();
   const island = await createIsland(cells);
   const openIsland = openIslandNavigation(cells, 1.25);
