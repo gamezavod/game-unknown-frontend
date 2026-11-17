@@ -149,9 +149,19 @@ async function start() {
   let night = false,
     nightBlend = 0,
     automatic = false;
+  const setPageChrome = (color: string, scheme: "light" | "dark") => {
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
+    document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')?.setAttribute("content", scheme);
+    document.documentElement.style.backgroundColor = color;
+    document.body.style.backgroundColor = color;
+    document.documentElement.style.colorScheme = scheme;
+  };
   $("time-toggle").addEventListener("click", () => {
     night = !night;
     document.body.classList.toggle("night", night);
+    if (!document.body.classList.contains("match3-open")) {
+      setPageChrome(night ? "#132f4b" : "#bdd6d3", night ? "dark" : "light");
+    }
     $("time-toggle").setAttribute("aria-pressed", String(night));
     $("time-toggle").textContent = night ? "☾ Ночь" : "☀ День";
   });

@@ -1,7 +1,9 @@
 :root {
   font-family: "Segoe UI", Arial, sans-serif;
   color: #314332;
-  background: #124b5c;
+  color-scheme: light;
+  /* iOS 26 paints the status-bar safe area from the document background. */
+  background: #bdd6d3;
   font-synthesis: none;
 }
 * {
@@ -11,6 +13,10 @@ body {
   margin: 0;
   overflow: hidden;
 }
+body.match3-open { background: #f1f5ef; }
+/* Do not leave the canvas or the Home HUD in the iOS compositor behind a shift. */
+body.match3-open #home-ui,
+body.match3-open #scene { display: none; }
 [hidden] {
   display: none !important;
 }
@@ -539,8 +545,10 @@ footer b {
 .home-nav button img { width: 24px; height: 24px; object-fit: contain; }
 #match3 {
   position: fixed;
-  z-index: 30;
+  z-index: 2147483647;
   inset: 0;
+  min-height: 100svh;
+  height: 100dvh;
   overflow: auto;
   overscroll-behavior: none;
   /* Hub в Penpot — ровная заливка #F1F5EF без отличающихся краев. */
