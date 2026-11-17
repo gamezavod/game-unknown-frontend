@@ -1,7 +1,9 @@
 :root {
   font-family: "Segoe UI", Arial, sans-serif;
   color: #314332;
-  background: #124b5c;
+  color-scheme: light;
+  /* iOS 26 paints the status-bar safe area from the document background. */
+  background: #bdd6d3;
   font-synthesis: none;
 }
 * {
@@ -11,6 +13,10 @@ body {
   margin: 0;
   overflow: hidden;
 }
+body.match3-open { background: #f1f5ef; }
+/* Do not leave the canvas or the Home HUD in the iOS compositor behind a shift. */
+body.match3-open #home-ui,
+body.match3-open #scene { display: none; }
 [hidden] {
   display: none !important;
 }
@@ -391,4 +397,524 @@ footer b {
 }
 #view-tools:not([open]) > :not(summary) {
   display: none !important;
+}
+
+.shift-entry {
+  position: fixed;
+  z-index: 9;
+  left: 18px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  min-height: 42px;
+  border: 1px solid #e4eddc55;
+  border-radius: 22px;
+  padding: 0 15px;
+  background: #f2f4e8e8;
+  color: #355345;
+  box-shadow: 0 8px 22px #06313b25;
+  font-size: 12px;
+  font-weight: 600;
+}
+.shift-entry span {
+  margin-right: 5px;
+  color: #82995f;
+}
+
+/* Главный экран повторяет автолейаут Penpot: HUD сверху, запуск смены и
+   навигация снизу. Карта остается живым canvas под этим интерфейсом. */
+#view-tools { display: none; }
+#home-ui {
+  position: fixed;
+  z-index: 9;
+  inset: 0;
+  pointer-events: none;
+  color: #24483d;
+  background: linear-gradient(to bottom, #bdd6d3 0, #bdd6d3e8 130px, #bdd6d300 300px);
+  font-family: "Inter Tight", Inter, "Segoe UI", Arial, sans-serif;
+}
+.home-frame {
+  display: flex;
+  flex-direction: column;
+  width: min(402px, 100%);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(14px, calc(env(safe-area-inset-top) + 14px)) 16px max(16px, calc(env(safe-area-inset-bottom) + 12px));
+}
+.home-hud,
+.home-shifts,
+.home-nav { pointer-events: auto; }
+.home-resources {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  min-height: 87px;
+  overflow: hidden;
+  border: 1px solid #ffffffb3;
+  border-radius: 24px;
+  background: #f9fbf6ed;
+  box-shadow: 0 8px 24px #06313b1c;
+  backdrop-filter: blur(10px);
+}
+.home-resource {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: 34px 13px 21px;
+  justify-content: center;
+  align-items: center;
+  column-gap: 3px;
+  padding: 8px 3px;
+  text-align: center;
+}
+.home-resource + .home-resource::before {
+  position: absolute;
+  top: 23px;
+  bottom: 23px;
+  left: 0;
+  width: 1px;
+  background: #dbe6dc;
+  content: "";
+}
+.home-resource img { grid-column: 1 / -1; justify-self: center; width: 30px; height: 30px; object-fit: contain; }
+.home-resource small { grid-column: 1 / -1; color: #5f796f; font: 600 10px/1.2 "Inter Tight", Inter, sans-serif; }
+.home-resource b { color: #1f4b3f; font: 700 17px/1 "Inter Tight", Inter, sans-serif; }
+.home-resource > span { align-self: end; padding-bottom: 2px; color: #5f796f; font: 500 10px/1 "Inter Tight", Inter, sans-serif; }
+.home-happiness {
+  display: flex;
+  align-items: center;
+  min-height: 55px;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid #ffffffb3;
+  border-radius: 22px;
+  background: #f9fbf6ed;
+  box-shadow: 0 8px 24px #06313b1c;
+  backdrop-filter: blur(10px);
+}
+.home-happiness > img { width: 32px; height: 32px; object-fit: contain; }
+.home-happiness > div { flex: 1; }
+.home-happiness span { display: block; color: #24483d; font: 700 12px/1.1 "Inter Tight", Inter, sans-serif; }
+.home-happiness span small { margin-left: 4px; color: #708b80; font: 500 10px/1 "Inter Tight", Inter, sans-serif; }
+.home-happiness i { display: block; height: 6px; margin-top: 8px; overflow: visible; border-radius: 6px; background: linear-gradient(90deg, #e68173, #e2c467 42%, #76b77e 68%, #1d9b70); }
+.home-happiness em { position: relative; display: block; width: 82%; height: 100%; }
+.home-happiness em::after { position: absolute; top: -3px; right: -3px; width: 6px; height: 12px; border: 1px solid #fff; border-radius: 2px; background: #568a67; content: ""; }
+.home-happiness > b { color: #24483d; font: 700 20px/1 "Inter Tight", Inter, sans-serif; white-space: nowrap; }
+.home-happiness > b small { color: #708b80; font: 500 11px/1 "Inter Tight", Inter, sans-serif; }
+.home-shifts {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  gap: 12px;
+  width: 100%;
+  margin-top: auto;
+  padding: 10px;
+  border: 1px solid #ffffffb3;
+  border-radius: 22px;
+  background: #fff;
+  color: #24483d;
+  text-align: left;
+  box-shadow: 0 8px 24px #06313b24;
+}
+.home-shifts > img { width: 38px; height: 36px; object-fit: contain; }
+.home-shifts b,
+.home-shifts small { display: block; }
+.home-shifts b { font: 700 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.home-shifts small { margin-top: 2px; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.home-nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  min-height: 64px;
+  margin-top: 16px;
+  padding: 6px;
+  border-radius: 26px;
+  background: #f3f8f4e8;
+  box-shadow: 0 8px 24px #06313b1c;
+  backdrop-filter: blur(10px);
+}
+.home-nav button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: #60776f;
+  font: 600 10px/1.2 "Inter Tight", Inter, sans-serif;
+}
+.home-nav button[aria-current="page"] { background: #ddf3e5; color: #14795c; }
+.home-nav button img { width: 24px; height: 24px; object-fit: contain; }
+#match3 {
+  position: fixed;
+  z-index: 2147483647;
+  inset: 0;
+  min-height: 100svh;
+  height: 100dvh;
+  overflow: auto;
+  overscroll-behavior: none;
+  /* Hub в Penpot — ровная заливка #F1F5EF без отличающихся краев. */
+  background: #f1f5ef;
+  color: #24483d;
+  font-family: "Inter Tight", Inter, "Segoe UI", Arial, sans-serif;
+}
+.m3-screen {
+  position: relative;
+  width: min(402px, 100%);
+  min-height: 100dvh;
+  margin: 0 auto;
+  /* В Penpot контентная область начинается через 4 px после safe area. */
+  padding: max(4px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom));
+  background: #f1f5ef;
+}
+.m3-header {
+  position: relative;
+  inset: auto;
+  pointer-events: auto;
+  color: #24483d;
+  text-shadow: none;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+.m3-header h1,
+.m3-header p,
+.m3-screen h2,
+.m3-screen p {
+  margin: 0 !important;
+}
+.m3-screen button { font-family: "Inter Tight", Inter, Arial, sans-serif; }
+.m3-art { display: block; object-fit: contain; }
+.m3-emoji {
+  display: inline-grid;
+  place-items: center;
+  font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  font-style: normal;
+  line-height: 1;
+}
+.m3-inline-art { display: inline-block; width: 22px; height: 22px; margin-right: 4px; vertical-align: middle; }
+.m3-header h1 {
+  font: 700 19px/1.2 "Inter Tight", Inter, "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0;
+}
+.m3-header p,
+.m3-screen small,
+.m3-screen .m3-lead,
+.m3-note,
+.m3-field-note {
+  color: #708b80;
+  font: 500 12px/1.2 "Inter Tight", Inter, "Segoe UI", Arial, sans-serif;
+}
+.m3-header p { margin-top: 3px; }
+.m3-header > div { flex: 1; }
+.m3-icon-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  color: #285246;
+  background: #e5f0e8;
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1;
+}
+.m3-header .m3-icon-button:last-child { font-size: 19px; }
+.m3-shift-mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #e7efe6; color: #183d33; font: 700 19px/1 "Inter Tight", Inter, sans-serif; }
+.m3-screen h2 {
+  margin: 8px 0 7px;
+  font: 400 25px/1.12 Georgia, serif;
+  letter-spacing: -0.6px;
+}
+.m3-lead { line-height: 1.45; }
+.m3-hub,
+.m3-brief,
+.m3-result {
+  display: flex;
+  flex-direction: column;
+}
+.m3-hub main,
+.m3-brief-main,
+.m3-result main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.m3-hub main { padding-top: 2px; }
+.m3-hub-intro {
+  min-height: 85px;
+  margin-inline: 8px;
+  padding: 15px 14px;
+  border-radius: 22px;
+  background: #fff;
+  color: #183d33;
+}
+.m3-hub-intro b { display: block; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-hub-intro p { margin-top: 5px !important; color: #60776f; font: 500 14px/1.18 "Inter Tight", Inter, sans-serif; }
+.m3-work-card {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  min-height: 72px;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 22px;
+  background: #fff;
+  color: #285246;
+  text-align: left;
+  box-shadow: 0 5px 14px #31543b0d;
+}
+.m3-work-card:disabled { opacity: 1; cursor: default; }
+.m3-work-card b,
+.m3-work-card small { display: block; }
+.m3-work-card b { font: 700 19px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-work-card small { margin-top: 4px; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-work-card i { margin-left: auto; color: #60776f; font: 700 30px/1 "Inter Tight", Inter, sans-serif; }
+.m3-card-icon,
+.m3-brief-icon,
+.m3-result-icon { width: 48px; height: 48px; }
+.m3-card-icon { width: 45px; height: 44px; }
+.m3-card-icon.m3-emoji { font-size: 42px; }
+.m3-island-button { min-height: 37px; height: 37px; margin-top: auto; border: 0; border-radius: 18px; background: #e7efe6; color: #183d33; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-brief-main { padding-top: 2px; }
+.m3-brief-hero,
+.m3-goal-card,
+.m3-move-card,
+.m3-stock-card,
+.m3-reward-note,
+.m3-result-card,
+.m3-stock { border-radius: 22px; background: #fff; }
+.m3-brief-hero { min-height: 92px; display: flex; align-items: center; gap: 16px; padding: 16px; }
+.m3-brief-icon { width: 63px; height: 60px; }
+.m3-brief-icon.m3-emoji { font-size: 48px; }
+.m3-brief-hero b { display: block; color: #183d33; font: 700 19px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-brief-hero p { margin-top: 15px !important; color: #60776f; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-goal-card { min-height: 85px; margin: 12px 8px 0; padding: 16px 14px; }
+.m3-goal-card b { color: #183d33; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-goal-card p { margin-top: 6px !important; color: #60776f; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-move-card { min-height: 99px; margin-top: 11px; padding: 16px 14px; }
+.m3-move-card > div { display: flex; align-items: center; justify-content: space-between; color: #183d33; }
+.m3-move-card b { font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-move-card strong { color: #14795c; font: 700 20px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-move-card p { margin-top: 13px !important; color: #60776f; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-stock-card { min-height: 58px; display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; }
+.m3-stock-art { width: 40px; height: 40px; }
+.m3-stock-art.m3-emoji { font-size: 34px; }
+.m3-stock-card > div { flex: 1; }
+.m3-stock-card small { display: block; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-stock-card i { display: block; height: 6px; margin-top: 6px; overflow: hidden; border-radius: 6px; background: #e4ede4; }
+.m3-stock-card em { display: block; height: 100%; border-radius: inherit; background: #14795c; }
+.m3-stock-card > b { align-self: flex-start; color: #183d33; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-note { margin: 18px 8px 0; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-primary,
+.m3-secondary {
+  min-height: 37px;
+  height: 37px;
+  width: 100%;
+  border: 0;
+  border-radius: 13px;
+  font-weight: 700;
+}
+.m3-primary { background: #45765b; color: #fff; box-shadow: 0 5px 12px #335c4430; }
+.m3-secondary { margin-top: 9px; background: #e7efe6; color: #183d33; }
+.m3-bottom-action { margin-top: 7px; }
+.m3-brief-main .m3-bottom-action { width: auto; margin-top: auto; border-radius: 18px; background: #147f61; }
+.m3-game { padding: max(4px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom)); }
+.m3-game .m3-header { padding: 0; margin: 0 0 10px; }
+.m3-game-stats { display: grid; grid-template-columns: minmax(0, 244fr) minmax(0, 118fr); gap: 8px; margin: 0 8px; }
+.m3-progress,
+.m3-moves { min-height: 72px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 18px; background: #fff; }
+.m3-resource-art { width: 36px; height: 40px; }
+.m3-resource-art.m3-emoji { font-size: 34px; }
+.m3-progress > div { flex: 1; }
+.m3-progress small,
+.m3-moves small { display: block; }
+.m3-progress b { display: block; margin: 0; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-progress i { display: block; height: 6px; margin: 4px 0 3px; overflow: hidden; border-radius: 10px; background: #e4ede4; }
+.m3-progress em { display: block; height: 100%; background: #8eae78; transition: width 260ms ease; }
+.m3-moves { display: block; padding-top: 7px; text-align: center; background: #d9eee2; }
+.m3-moves small { color: #14795c; font-size: 11px; }
+.m3-moves b { display: block; margin-top: 1px; color: #183d33; font: 700 30px/1 "Inter Tight", Inter, sans-serif; }
+.m3-bonus-line { height: 22px; display: flex; align-items: center; gap: 6px; margin: 8px 8px 10px; color: #60776f; font: 500 12px/22px "Inter Tight", Inter, sans-serif; }
+.m3-line-art { width: 20px; height: 22px; }
+.m3-line-emoji { width: 20px; height: 22px; font-size: 16px; }
+.m3-board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px; width: 100%; aspect-ratio: 1; overflow: hidden; margin: 0; padding: 8px; border: 0; border-radius: 24px; background: #dcc5a4; touch-action: none; }
+.m3-chip { aspect-ratio: 1; min-width: 0; border: 0; border-radius: 10px; background: #f1e7d8; transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease; }
+.m3-chip { overflow: hidden; }
+/* В PNG из Penpot прозрачные поля больше, чем в рендеринге emoji на макете. */
+.m3-chip-art { width: 100%; height: 100%; padding: 2px; transform: scale(1.4); }
+.m3-chip > .m3-emoji { width: 100%; height: 100%; font-size: 29px; transform: scale(1.04); }
+.m3-chip--sand { background: #f1e7d8; }
+.m3-chip--green { background: #e7f0d8; }
+.m3-chip--mint { background: #e8efec; }
+.m3-chip--cream { background: #fff1d6; }
+.m3-chip--blue { background: #e8edf8; }
+.m3-chip--tree { background: #e7f0d8; }
+.m3-chip--leaf { background: #e8efec; }
+.m3-chip--mushroom { background: #fff1d6; }
+.m3-chip--acorn { background: #e8edf8; }
+.m3-chip--pot { background: #fff1d6; box-shadow: inset 0 0 0 2px #c9804b; }
+.m3-chip.is-selected { background: #d5edc8; box-shadow: inset 0 0 0 3px #518c5d; transform: scale(0.92); }
+.m3-chip.is-hinted { animation: m3-hint 750ms ease-in-out infinite alternate; box-shadow: inset 0 0 0 3px #e5ae43; }
+.m3-chip.is-invalid { animation: m3-invalid 165ms ease-in-out 1; }
+.m3-chip.is-swapping,
+.m3-chip.is-returning { position: relative; z-index: 2; will-change: transform; }
+.m3-chip.is-swapping { animation: m3-swap 180ms cubic-bezier(.2,.8,.2,1) both; }
+.m3-chip.is-returning { animation: m3-swap 160ms cubic-bezier(.55,0,.8,.4) both; }
+.m3-chip.is-clearing { animation: m3-clear 180ms cubic-bezier(.2,.7,.35,1) forwards; }
+.m3-chip.is-dropping { animation: m3-drop 240ms cubic-bezier(.18,.78,.24,1) both; animation-delay: var(--drop-delay, 0ms); }
+@keyframes m3-hint { from { transform: scale(0.94); } to { transform: scale(1.03); } }
+@keyframes m3-invalid { 0%,100% { transform: translateX(0); } 30% { transform: translateX(-7px); } 70% { transform: translateX(7px); } }
+@keyframes m3-swap { to { transform: translate(var(--swap-x), var(--swap-y)); } }
+@keyframes m3-clear { 35% { transform: scale(1.1); filter: brightness(1.18); } to { transform: scale(.12) rotate(10deg); opacity: 0; } }
+@keyframes m3-drop { from { opacity: 0; transform: translateY(-34px) scale(.86); } 70% { opacity: 1; transform: translateY(3px) scale(1.025); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.m3-field-note { min-height: 32px; margin: 8px 8px 10px; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 8px; }
+.m3-actions button { min-height: 58px; display: grid; align-content: center; justify-items: center; border: 0; border-radius: 18px; background: #fff; color: #60776f; }
+.m3-action-art { width: 32px; height: 24px; }
+.m3-actions span { display: block; margin-top: 1px; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-reward-note { min-height: 62px; display: flex; align-items: center; gap: 10px; margin: 12px 8px 0; padding: 11px 10px; color: #183d33; }
+.m3-reward-note b { font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-reward-note small { margin-top: 3px; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-reward-art { width: 40px; height: 40px; }
+.m3-reward-emoji { width: 40px; height: 40px; font-size: 30px; }
+.m3-reward-note b,
+.m3-reward-note small { display: block; }
+.m3-modal-backdrop { position: fixed; z-index: 2; inset: 0; display: grid; align-items: end; padding: 18px; background: #163e3699; }
+.m3-modal { width: min(100%, 370px); margin: 0 auto; padding: 23px 20px max(20px, env(safe-area-inset-bottom)); border-radius: 23px; background: #f8faf3; text-align: left; box-shadow: 0 -8px 30px #112b2422; }
+.m3-modal h2 { margin-top: 0; color: #183d33; font: 700 19px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-modal p { margin: 10px 0 18px !important; color: #60776f; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-modal .m3-primary,
+.m3-modal .m3-secondary { font: 700 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-modal-resource { display: flex; min-height: 52px; align-items: center; gap: 12px; margin: 0 0 12px; padding: 8px 12px; border-radius: 16px; background: #e4ede4; color: #183d33; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-modal-resource .m3-inline-art { width: 34px; height: 34px; margin: 0; }
+.m3-modal-icon { margin: 0 0 16px; }
+.m3-modal-icon .m3-art { width: 48px; height: 48px; }
+.m3-modal--energy { padding-top: 25px; }
+.m3-modal--rules p { margin: 14px 0 !important; }
+.m3-rules-example { height: 44px; margin: 8px 0 12px; }
+.m3-rules-example .m3-art { width: 330px; max-width: 100%; height: 44px; }
+.m3-result { text-align: center; }
+.m3-result .m3-header { margin-bottom: 14px; text-align: left; }
+.m3-result-hero { height: 166px; }
+.m3-result-icon { display: block; width: 70px; height: 68px; margin: 16px auto 0; }
+.m3-result-icon .m3-art { width: 70px; height: 68px; }
+.m3-result h2 { margin-top: 8px !important; color: #183d33; font: 700 26px/1.27 "Inter Tight", Inter, sans-serif; letter-spacing: 0; }
+.m3-result .m3-lead { max-width: 354px; margin: 8px auto 0 !important; color: #60776f; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-result-hero--plain { height: 220px; padding-top: 43px; }
+.m3-result-hero--plain h2 { margin-top: 0 !important; }
+.m3-result-title--plain { margin-top: 67px !important; }
+.m3-result-card { min-height: 122px; display: grid; gap: 10px; margin-top: 12px; padding: 16px; text-align: left; }
+.m3-result-card div { display: flex; justify-content: space-between; align-items: center; }
+.m3-result-card small { color: #60776f; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-result-card b { color: #147f61; font: 700 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-result-card .m3-result-total { margin-top: 5px; padding-top: 12px; border-top: 1px solid #e4ece4; }
+.m3-result-card .m3-result-total small { color: #183d33; font-weight: 600; }
+.m3-result-card .m3-result-total b { font-size: 30px; }
+.m3-stock { min-height: 58px; display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; text-align: left; }
+.m3-stock > div { flex: 1; }
+.m3-stock small { display: block; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-stock i { display: block; height: 6px; margin-top: 6px; overflow: hidden; border-radius: 6px; background: #e4ede4; }
+.m3-stock em { display: block; height: 100%; border-radius: inherit; background: #14795c; }
+.m3-stock > b { align-self: flex-start; color: #183d33; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-result-help { min-height: 85px; margin: 12px 8px 0; padding: 16px 14px; border-radius: 22px; background: #fff; text-align: left; }
+.m3-result-help b { display: block; color: #183d33; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-result-help p { margin-top: 5px !important; color: #60776f; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-result .m3-bottom-action { width: auto; margin-top: auto; border-radius: 18px; background: #147f61; }
+.m3-result-again { min-height: 37px; height: 37px; margin-top: 8px; border: 0; border-radius: 18px; background: #e7efe6; color: #183d33; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+/* Итог раскопок — отдельный автолейаут DigResult из Penpot, а не вариант
+   обычного экрана результата. Размеры ниже повторяют его группы и отступы. */
+.m3-dig-result .m3-header { margin-bottom: 14px; }
+.m3-dig-result main { min-height: 0; }
+.m3-dig-result-hero { height: 183px; text-align: center; }
+.m3-dig-result .m3-result-icon { width: 70px; height: 68px; margin: 16px auto 0; }
+.m3-dig-result .m3-result-icon .m3-art { width: 70px; height: 68px; }
+.m3-dig-result .m3-dig-result-hero h2 { margin: 8px 0 0 !important; font: 700 26px/1.27 "Inter Tight", Inter, sans-serif; letter-spacing: 0; }
+.m3-dig-result .m3-dig-result-hero .m3-lead { max-width: 354px; margin: 8px auto 0 !important; font: 500 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-dig-discovery { min-height: 95px; display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 22px; background: #fff; text-align: left; }
+.m3-dig-tree { width: 63px; height: 60px; flex: 0 0 auto; }
+.m3-dig-discovery span { min-width: 0; }
+.m3-dig-discovery b,
+.m3-dig-info b { display: block; color: #183d33; font: 600 16px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-dig-discovery p,
+.m3-dig-info p { margin-top: 5px !important; color: #60776f; font: 500 12px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-dig-info { min-height: 68px; margin: 12px 8px 0; padding: 14px; border-radius: 22px; background: #fff; text-align: left; }
+.m3-dig-info b { font-size: 12px; }
+.m3-dig-result .m3-bottom-action,
+.m3-dig-result .m3-result-again { width: 100%; min-height: 37px; height: 37px; border-radius: 18px; font: 600 14px/1.2 "Inter Tight", Inter, sans-serif; }
+.m3-dig-result .m3-bottom-action { margin-top: auto; }
+.m3-dig-result .m3-result-again { margin-top: 8px; }
+
+/* Ночная версия соответствует отдельным экранам Penpot и берет режим карты. */
+.m3-screen--night { background: #132f4b; color: #eaf3ee; }
+.m3-screen--night .m3-header h1,
+.m3-screen--night .m3-header p,
+.m3-screen--night .m3-screen h2 { color: #ecf5ef; }
+.m3-screen--night .m3-header p,
+.m3-screen--night small,
+.m3-screen--night .m3-lead,
+.m3-screen--night .m3-note,
+.m3-screen--night .m3-field-note,
+.m3-screen--night .m3-bonus-line { color: #b6cbc2; }
+.m3-screen--night .m3-icon-button,
+.m3-screen--night .m3-shift-mark { background: #1f475f; color: #eaf3ee; }
+.m3-screen--night .m3-hub-intro,
+.m3-screen--night .m3-work-card,
+.m3-screen--night .m3-brief-hero,
+.m3-screen--night .m3-goal-card,
+.m3-screen--night .m3-move-card,
+.m3-screen--night .m3-stock-card,
+.m3-screen--night .m3-reward-note,
+.m3-screen--night .m3-result-card,
+.m3-screen--night .m3-stock,
+.m3-screen--night .m3-result-help,
+.m3-screen--night .m3-dig-discovery,
+.m3-screen--night .m3-dig-info,
+.m3-screen--night .m3-actions button,
+.m3-screen--night .m3-progress { background: #214258; color: #eaf3ee; }
+.m3-screen--night .m3-work-card b,
+.m3-screen--night .m3-brief-hero b,
+.m3-screen--night .m3-goal-card b,
+.m3-screen--night .m3-move-card b,
+.m3-screen--night .m3-result-help b,
+.m3-screen--night .m3-dig-discovery b,
+.m3-screen--night .m3-dig-info b,
+.m3-screen--night .m3-result-card .m3-result-total small,
+.m3-screen--night .m3-result h2 { color: #eaf3ee; }
+.m3-screen--night .m3-work-card small,
+.m3-screen--night .m3-brief-hero p,
+.m3-screen--night .m3-goal-card p,
+.m3-screen--night .m3-move-card p,
+.m3-screen--night .m3-stock-card small,
+.m3-screen--night .m3-reward-note small,
+.m3-screen--night .m3-result-card small,
+.m3-screen--night .m3-stock small,
+.m3-screen--night .m3-result-help p,
+.m3-screen--night .m3-dig-discovery p,
+.m3-screen--night .m3-dig-info p,
+.m3-screen--night .m3-actions button { color: #b6cbc2; }
+.m3-screen--night .m3-moves { background: #204d58; }
+.m3-screen--night .m3-island-button,
+.m3-screen--night .m3-result-again,
+.m3-screen--night .m3-secondary { background: #214258; color: #eaf3ee; }
+/* На коротком окне уменьшаем только вертикальные интервалы: макет не масштабируется целиком. */
+@media (max-height: 760px) and (max-width: 460px) {
+  .m3-screen { padding-top: max(4px, env(safe-area-inset-top)); }
+  .m3-header { margin-bottom: 8px; }
+  .m3-hub-intro { min-height: 72px; padding: 12px 14px; }
+  .m3-work-card { min-height: 72px; margin-top: 8px; }
+  .m3-brief-hero { min-height: 88px; padding: 12px 20px; }
+  .m3-brief-hero p { margin-top: 8px !important; }
+  .m3-goal-card { min-height: 74px; margin-top: 8px; padding: 12px 14px; }
+  .m3-move-card { min-height: 84px; margin-top: 8px; padding: 12px 14px; }
+  .m3-move-card p { margin-top: 8px !important; }
+  .m3-stock-card { min-height: 58px; margin-top: 8px; }
+  .m3-note { margin: 14px 8px 0; }
+}
+@media (min-width: 520px) {
+  .m3-screen { box-shadow: 0 0 0 1px #dbe7dc; }
 }

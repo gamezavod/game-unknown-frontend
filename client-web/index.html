@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <meta name="theme-color" content="#124b5c" />
+    <meta name="color-scheme" content="light" />
     <link rel="icon" href="/island.svg" type="image/svg+xml" />
     <title>Свой остров — Первый берег</title>
   </head>
@@ -16,6 +17,26 @@
       tabindex="0"
       aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Выбор клетки также доступен в списке."
     ></canvas>
+    <div id="home-ui" aria-label="Главный экран острова">
+      <div class="home-frame">
+        <section class="home-hud" aria-label="Ресурсы острова">
+          <div class="home-resources">
+            <div class="home-resource"><img data-home-icon="wood" alt="" /><small>Дерево</small><b data-home-resource="wood">120</b><span>/ 200</span></div>
+            <div class="home-resource"><img data-home-icon="food" alt="" /><small>Еда</small><b data-home-resource="food">80</b><span>/ 200</span></div>
+            <div class="home-resource"><img data-home-icon="stone" alt="" /><small>Камень</small><b data-home-resource="stone">60</b><span>/ 200</span></div>
+            <div class="home-resource"><img data-home-icon="iron" alt="" /><small>Железо</small><b data-home-resource="iron">0</b><span>/ 200</span></div>
+          </div>
+          <div class="home-happiness"><img data-home-icon="happy" alt="" /><div><span>Счастье <small>Жителям хорошо</small></span><i><em></em></i></div><b>82 <small>/ 100</small></b></div>
+        </section>
+        <button id="open-shifts" class="home-shifts" aria-label="Открыть рабочие смены"><img data-home-icon="launcher" alt="" /><span><b>Рабочие смены</b><small>Добывай ресурсы в «3 в ряд»</small></span></button>
+        <nav class="home-nav" aria-label="Разделы игры">
+          <button type="button" aria-current="page"><img data-home-icon="game" alt="" />Игра</button>
+          <button type="button"><img data-home-icon="settlement" alt="" />Поселение</button>
+          <button type="button"><img data-home-icon="technology" alt="" />Технологии</button>
+          <button type="button"><img data-home-icon="stats" alt="" />Статистика</button>
+        </nav>
+      </div>
+    </div>
     <details id="view-tools">
       <summary aria-label="Показать управление картой">☰</summary>
       <header>
@@ -75,6 +96,7 @@
         <b>·</b> Коснитесь клетки
       </footer>
     </details>
+    <div id="match3" hidden></div>
     <div id="loading" role="status">
       Открываем ваш остров<span>Загружаем берег, лес и маленькие дома…</span>
     </div>

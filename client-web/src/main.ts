@@ -14,11 +14,34 @@ import {
   canPickCell,
 } from "./selection";
 import { TapGesture } from "./gestures";
+import { mountMatchThree } from "./match3-ui";
+import { penpotHomeIcons } from "./penpot-home-icons";
+import "@fontsource-variable/inter-tight";
 import "./style.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
 const $ = (id: string) => document.getElementById(id)!;
+
+function assetUrl(asset: string) {
+  return asset.startsWith("data:") ? asset : `data:image/png;base64,${asset}`;
+}
+
+function mountHomeHud() {
+  document.querySelectorAll<HTMLImageElement>("[data-home-icon]").forEach((image) => {
+    image.src = assetUrl(penpotHomeIcons[image.dataset.homeIcon as keyof typeof penpotHomeIcons]);
+  });
+  window.addEventListener("match3:warehouse", (event) => {
+    const detail = (event as CustomEvent<Record<string, number>>).detail;
+    Object.entries(detail).forEach(([resource, value]) => {
+      const element = document.querySelector<HTMLElement>(`[data-home-resource="${resource}"]`);
+      if (element) element.textContent = String(value);
+    });
+  });
+}
+
 async function start() {
+  mountHomeHud();
+  mountMatchThree();
   const cells = await demoMapSource.load();
   const island = await createIsland(cells);
   const openIsland = openIslandNavigation(cells, 1.25);
@@ -126,9 +149,19 @@ async function start() {
   let night = false,
     nightBlend = 0,
     automatic = false;
+  const setPageChrome = (color: string, scheme: "light" | "dark") => {
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
+    document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')?.setAttribute("content", scheme);
+    document.documentElement.style.backgroundColor = color;
+    document.body.style.backgroundColor = color;
+    document.documentElement.style.colorScheme = scheme;
+  };
   $("time-toggle").addEventListener("click", () => {
     night = !night;
     document.body.classList.toggle("night", night);
+    if (!document.body.classList.contains("match3-open")) {
+      setPageChrome(night ? "#132f4b" : "#bdd6d3", night ? "dark" : "light");
+    }
     $("time-toggle").setAttribute("aria-pressed", String(night));
     $("time-toggle").textContent = night ? "☾ Ночь" : "☀ День";
   });
