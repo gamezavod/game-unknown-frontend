@@ -1,3 +1,5 @@
+import { renderArt } from "./ui-art";
+import { penpotVectors } from "./penpot-vectors";
 import {
   attemptMove,
   chipPresentation,
@@ -22,7 +24,7 @@ import {
 import { penpotHomeIcons } from "./penpot-home-icons";
 
 type Screen = "hub" | "brief" | "game" | "result";
-type Modal = "pause" | "rules" | "storageFull" | "noCharges" | undefined;
+type Modal = "pause" | "rules" | "storageFull" | "noCharges" | "noEnergy" | "noWorkers" | "hint" | undefined;
 
 interface Shift {
   board: Board;
@@ -33,6 +35,7 @@ interface Shift {
   digDepth: number;
   /** Заряд молнии очищает выбранный ряд без траты хода. */
   lightningCharges: number;
+  lightningEnabled: boolean;
   /** После нажатия молнии следующая выбранная фишка задает очищаемый ряд. */
   lightningArmed: boolean;
 }
@@ -75,17 +78,19 @@ const penpotChipIcons: Partial<Record<ChipId, PenpotMatch3IconName>> = {
 };
 
 function art(name: Match3IconName, className = "") {
-  const exported = match3Icons[name];
-  const src = exported.startsWith("data:") ? exported : `data:image/png;base64,${exported}`;
-  return `<img class="m3-art ${className}" src="${src}" alt="" aria-hidden="true">`;
+  return renderArt(match3Icons[name], className);
 }
 
 function penpotArt(name: PenpotMatch3IconName, className = "") {
-  return `<img class="m3-art ${className}" src="data:image/png;base64,${penpotMatch3Icons[name]}" alt="" aria-hidden="true">`;
+  return renderArt(penpotMatch3Icons[name], className);
 }
 
 function homeArt(name: keyof typeof penpotHomeIcons, className = "") {
-  return `<img class="m3-art ${className}" src="data:image/png;base64,${penpotHomeIcons[name]}" alt="" aria-hidden="true">`;
+  return renderArt(penpotHomeIcons[name], className);
+}
+
+function controlIcon(name: "back" | "pause" | "next") {
+  return renderArt(penpotVectors[name], "m3-control-art");
 }
 
 function chipArt(chip: ChipId, className = "") {
@@ -139,6 +144,7 @@ export function mountMatchThree() {
   let swapping: [Position, Position] | undefined;
   let boardPhase: "swap" | "return" | "clear" | "drop" | undefined;
   let busy = false;
+  let lastLightningYield: number | undefined;
   const warehouse: Record<ShiftId, number> = {
     sawmill: 120,
     farm: 80,
@@ -179,7 +185,7 @@ export function mountMatchThree() {
     modal = undefined;
     document.body.classList.remove("match3-open");
     setBrowserChrome(
-      document.body.classList.contains("night") ? "#132f4b" : "#bdd6d3",
+      document.body.classList.contains("night") ? "#102a40" : "#bdd6d3",
       document.body.classList.contains("night") ? "dark" : "light",
     );
   };
@@ -189,7 +195,7 @@ export function mountMatchThree() {
     screen = "hub";
     modal = undefined;
     setBrowserChrome(
-      document.body.classList.contains("night") ? "#132f4b" : "#f1f5ef",
+      document.body.classList.contains("night") ? "#0d202b" : "#f1f5ef",
       document.body.classList.contains("night") ? "dark" : "light",
     );
     render();
@@ -292,27 +298,27 @@ export function mountMatchThree() {
     updateGameActions();
   }
 
+  function gameInstruction() {
+    if (!shift) return "";
+    if (lastLightningYield !== undefined)
+      return `Молния собрала ${lastLightningYield} ${lastLightningYield === 1 ? "бревно" : lastLightningYield >= 2 && lastLightningYield <= 4 ? "бревна" : "брёвен"}. Ход не потрачен.`;
+    if (shift.lightningArmed) return "Выбери ряд: молния соберёт все его фишки.";
+    if (shift.lightningCharges > 0) return "Энергии хватает: молния очистит выбранный ряд.";
+    if (shift.theme.id === "sawmill" && shift.moves === 1 && !selected)
+      return `Последний ход: собери ещё ${Math.max(0, shift.theme.goal - shift.collected)} бревна для бонуса.`;
+    return shift.theme.fieldNote;
+  }
+
   function updateGameActions() {
     if (!shift) return;
-    const lightningAvailable = shift.lightningCharges > 0;
     const banner = root.querySelector<HTMLElement>("[data-match-banner]");
     const note = root.querySelector<HTMLElement>("[data-match-field-note]");
     const lightningLabel = root.querySelector<HTMLElement>("[data-lightning-label]");
-    if (banner) banner.textContent = shift.theme.contextText;
-    if (note)
-      note.textContent = lightningAvailable
-        ? shift.lightningArmed
-          ? "Выбери фишку: молния очистит весь ее ряд без траты хода."
-          : selected
-            ? "Молния очистит выбранный ряд без траты хода."
-            : "Выбери фишку, затем нажми молнию."
-        : shift.theme.fieldNote;
-    if (lightningLabel)
-      lightningLabel.textContent = lightningAvailable
-        ? shift.lightningArmed
-          ? "Выбери ряд"
-          : `Молния · ${shift.lightningCharges}`
-        : "Нет энергии";
+    if (banner) banner.textContent = shift.lightningCharges > 0 && !shift.lightningArmed
+      ? "Энергии хватает · молния доступна" : shift.theme.contextText;
+    if (note) note.textContent = gameInstruction();
+    if (lightningLabel) lightningLabel.textContent = shift.lightningEnabled
+      ? `Молния · ${shift.lightningCharges}` : "Нет энергии";
   }
 
   function changedPositions(before: Board, after: Board): Position[] {
@@ -326,26 +332,33 @@ export function mountMatchThree() {
 
   function overlay() {
     if (!modal) return "";
-    // Окно заполненного склада может открыться еще до создания смены.
-    const theme = shift?.theme ?? selectedTheme;
-    const text =
-      modal === "pause" && shift
-        ? `<h2>Смена на паузе</h2><p>Продолжи или заверши сейчас. Вся собранная добыча останется у тебя.</p><strong class="m3-modal-resource">${themeArt(theme, "m3-inline-art")}<span>Собрано: ${theme.kind === "dig" ? `пройдено ${shift.digDepth} из 6 рядов` : `${shift.collected} ${theme.resourceName}`}</span></strong><button class="m3-primary" data-action="resume">Продолжить смену</button><button class="m3-secondary" data-action="finish">Завершить смену</button>`
-        : modal === "rules"
-          ? `<h2>Как играть</h2><div class="m3-rules-example">${art("rulesExample")}</div><p>Нажми на фишку, затем на соседнюю. Три одинаковых по горизонтали или вертикали исчезают. Неудачный обмен не тратит ход.</p><p>В рабочих сменах главные фишки дают по 1 ресурсу, а цель приносит бонус. Вся добыча сохраняется.</p><p>В раскопках расчищай путь под амфорой, пока она не дойдет до нижнего края. Если не успеешь, глубина сохранится.</p><button class="m3-primary" data-action="close-modal">Понятно, играем!</button>`
-          : modal === "storageFull"
-            ? `<div class="m3-modal-icon">${art("box")}</div><h2>Склад ${theme.resourceName} заполнен</h2><p>Потрать накопленное или построй еще склад. Смена станет доступна, когда освободится место.</p><button class="m3-primary" data-action="close-modal">К складу</button>`
-            : `<div class="m3-modal-icon">${art("energy")}</div><h2>Зарядов нет</h2><p>Молния появится, когда на острове будет достаточно энергии. Пока можно собирать обычные ряды.</p><button class="m3-primary" data-action="close-modal">Понятно</button>`;
-    return `<div class="m3-modal-backdrop" role="presentation"><section class="m3-modal m3-modal--${modal}" role="dialog" aria-modal="true">${text}</section></div>`;
+    const theme = screen === "brief" ? selectedTheme : shift?.theme ?? selectedTheme;
+    const details = {
+      noEnergy: { icon: "energy", title: "Нужно больше энергии", body: "Молния доступна при достаточном энергоснабжении острова. Пока можно собирать обычные ряды.", action: "Понятно" },
+      noCharges: { icon: "energy", title: "Молния уже использована", body: "В этой смене заряд закончился. Продолжай собирать ряды. Новый заряд будет в следующей смене.", action: "Понятно" },
+      storageFull: { icon: "box", title: `Склад ${theme.resourceName} заполнен`, body: "Потрать накопленное или построй ещё склад. Смена станет доступна, когда освободится место.", action: "К складу" },
+      noWorkers: { icon: "worker", title: "Нужны работники", body: "Без работников смена не начнётся. Назначь хотя бы одного жителя в лесопилку.", action: "Назначить работников" },
+      hint: { icon: "hint", title: "Как найти ход", body: "Найди две одинаковые фишки рядом. Поменяй соседнюю фишку так, чтобы собрать ряд из трёх или больше.", action: "Понятно" },
+    } as const;
+    let content: string;
+    if (modal === "pause") {
+      content = `<h2>Смена на паузе</h2><p>Продолжи или заверши сейчас. Вся собранная добыча останется у тебя.</p><strong class="m3-modal-resource">${art("backpack", "m3-inline-art")}<span>Добыча сохранится</span></strong><button class="m3-primary" data-action="resume">Продолжить смену</button><button class="m3-secondary" data-action="finish">Завершить смену</button>`;
+    } else if (modal === "rules") {
+      content = `<h2>Как играть</h2><div class="m3-rules-example">${art("rulesExample")}</div><p>Нажми на фишку, затем на соседнюю. Три одинаковых по горизонтали или вертикали исчезают. Неудачный обмен не тратит ход.</p><p>В рабочих сменах главные фишки дают по 1 ресурсу, а цель приносит бонусный ящик. Вся добыча сохраняется.</p><p>В раскопках расчищай путь под амфорой, пока она не дойдёт до нижнего края. Если не успеешь, глубина сохранится.</p><button class="m3-primary" data-action="close-modal">Понятно, играем!</button>`;
+    } else {
+      const info = details[modal];
+      content = `<div class="m3-modal-icon">${art(info.icon)}</div><h2>${info.title}</h2><p>${info.body}</p><button class="m3-primary" data-action="close-modal">${info.action}</button>`;
+    }
+    return `<div class="m3-modal-backdrop" role="presentation"><section class="m3-modal m3-modal--${modal}" role="dialog" aria-modal="true" aria-label="${modal === "pause" ? "Смена на паузе" : modal === "rules" ? "Как играть" : details[modal].title}">${content}</section></div>`;
   }
 
   function hubCard(id: ShiftId, icon: ChipId | "pot", title: string, detail: string) {
-    return `<button class="m3-work-card" data-action="brief" data-shift="${id}">${icon === "pot" ? art("pot", "m3-card-icon") : chipArt(icon, "m3-card-icon")}<span><b>${title}</b><small>${detail}</small></span><i>›</i></button>`;
+    return `<button class="m3-work-card" data-action="brief" data-shift="${id}">${icon === "pot" ? art("pot", "m3-card-icon") : chipArt(icon, "m3-card-icon")}<span><b>${title}</b><small>${detail}</small></span><i>${controlIcon("next")}</i></button>`;
   }
 
   function renderHub() {
     root.innerHTML = `<section class="m3-screen m3-hub${nightClass()}">
-      <header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">‹</button><div><h1>Рабочие смены</h1><p>Ресурсы для твоего острова</p></div></header>
+      <header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">${controlIcon("back")}</button><div><h1>Рабочие смены</h1><p>Ресурсы для твоего острова</p></div></header>
       <main><section class="m3-hub-intro"><b>Каждому месту — своя смена</b><p>Собирай фишки на поле 8×8. Выбери, что нужно острову сейчас.</p></section>
         ${hubCard("sawmill", "log", "Лесопилка", "Дерево · 2 работника")}
         ${hubCard("farm", "wheat", "Ферма", "Еда · 2 работника")}
@@ -368,7 +381,7 @@ export function mountMatchThree() {
         ? "Провизия уже внесена. Глубина сохранится, даже если не успеешь."
         : `Бонусный ящик за цель: +${theme.bonus} ${theme.resourceName}. Вся добыча останется у тебя.`;
     root.innerHTML = `<section class="m3-screen m3-brief${nightClass()}">
-      <header class="m3-header"><button class="m3-icon-button" data-action="hub" aria-label="К списку смен">‹</button><div><h1>${theme.title}</h1><p>Перед началом</p></div><span class="m3-shift-mark" aria-hidden="true">Ⅱ</span></header>
+      <header class="m3-header"><button class="m3-icon-button" data-action="hub" aria-label="К списку смен">${controlIcon("back")}</button><div><h1>${theme.title}</h1><p>Перед началом</p></div><span class="m3-shift-mark" aria-hidden="true">${controlIcon("pause")}</span></header>
       <main class="m3-brief-main"><section class="m3-brief-hero">${themeArt(theme, "m3-brief-icon")}<div><b>${theme.subtitle}</b><p>Смена приносит ресурсы на остров</p></div></section>
         <section class="m3-goal-card"><b>${goalText}</b><p>${bonusText}</p></section>
         <section class="m3-move-card"><div><b>Ходов в смене</b><strong>${theme.moves}</strong></div><p>${theme.workers}</p></section>
@@ -384,34 +397,28 @@ export function mountMatchThree() {
     const currentValue = theme.kind === "dig" ? (shift.digDepth >= 6 ? 1 : 0) : shift.collected;
     const goalHint = theme.kind === "dig" ? "Опусти к нижнему краю" : "Цель смены";
     const lightningAvailable = shift.lightningCharges > 0;
-    const bannerText = theme.contextText;
-    const fieldNote = lightningAvailable
-      ? shift.lightningArmed
-        ? "Выбери фишку: молния очистит весь ее ряд без траты хода."
-        : selected
-          ? "Молния очистит выбранный ряд без траты хода."
-          : "Выбери фишку, затем нажми молнию."
-      : theme.fieldNote;
-    root.innerHTML = `<section class="m3-screen m3-game${nightClass()}">
-      <header class="m3-header"><button class="m3-icon-button" data-action="pause" aria-label="Поставить смену на паузу">×</button><div><h1>${theme.title}</h1><p>${theme.subtitle}</p></div><button class="m3-icon-button" data-action="pause" aria-label="Поставить смену на паузу">Ⅱ</button></header>
+    const bannerText = shift.lightningCharges > 0 && !shift.lightningArmed ? "Энергии хватает · молния доступна" : theme.contextText;
+    const fieldNote = gameInstruction();
+    root.innerHTML = `<section class="m3-screen m3-game m3-game--${theme.id}${nightClass()}">
+      <header class="m3-header"><button class="m3-icon-button" data-action="pause" aria-label="Поставить смену на паузу">${controlIcon("back")}</button><div><h1>${theme.title}</h1><p>${theme.subtitle}</p></div><button class="m3-icon-button" data-action="pause" aria-label="Поставить смену на паузу">${controlIcon("pause")}</button></header>
       <main><section class="m3-game-stats"><div class="m3-progress">${themeArt(theme, "m3-resource-art")}<div><small>${theme.mainChipName}</small><b data-match-amount>${currentValue} / ${theme.goal}</b><i><em data-match-progress style="width:${theme.kind === "dig" ? (shift.digDepth / 6) * 100 : Math.min(100, (shift.collected / theme.goal) * 100)}%"></em></i><small>${goalHint}</small></div></div><div class="m3-moves"><small>ХОДЫ</small><b data-match-moves>${shift.moves}</b></div></section>
         <p class="m3-bonus-line">${contextArt(theme, "m3-line-art")}<span data-match-banner>${bannerText}</span></p>
         ${gameBoard()}
         <p class="m3-field-note" data-match-field-note>${fieldNote}</p>
-        <nav class="m3-actions" aria-label="Действия"><button data-action="hint">${art("hint", "m3-action-art")}<span>Подсказка</span></button><button data-action="lightning">${art("energy", "m3-action-art")}<span data-lightning-label>${lightningAvailable ? `Молния · ${shift.lightningCharges}` : "Нет энергии"}</span></button><button data-action="rules">${art("rules", "m3-action-art")}<span>Правила</span></button></nav>
+        <nav class="m3-actions" aria-label="Действия"><button data-action="hint">${art("hint", "m3-action-art")}<span>Подсказка</span></button><button data-action="lightning">${art("energy", "m3-action-art")}<span data-lightning-label>${shift.lightningEnabled ? `Молния · ${shift.lightningCharges}` : "Нет энергии"}</span></button><button data-action="rules">${art("rules", "m3-action-art")}<span>Правила</span></button></nav>
         <section class="m3-reward-note">${theme.kind === "dig" ? penpotArt("map", "m3-reward-art") : art("box", "m3-reward-art")}<span><b>${theme.kind === "dig" ? "Награда: новый участок" : `Бонус за цель: +${theme.bonus} ${theme.resourceName}`}</b><small>${theme.kind === "dig" ? "Глубина сохранится, даже если не успеешь" : "Вся собранная добыча останется у тебя"}</small></span></section>
-      </main>${overlay()}</section>`;
+      </main></section>`;
   }
 
   function renderResult() {
     if (!result) return;
     const { theme, reward, digFound } = result;
     if (theme.kind === "dig" && digFound) {
-      root.innerHTML = `<section class="m3-screen m3-result m3-dig-result${nightClass()}"><header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">‹</button><div><h1>Раскопки</h1><p>Итоги смены</p></div></header><main>
+      root.innerHTML = `<section class="m3-screen m3-result m3-dig-result${nightClass()}"><header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">${controlIcon("back")}</button><div><h1>Раскопки</h1><p>Итоги смены</p></div></header><main>
         <section class="m3-dig-result-hero"><span class="m3-result-icon">${art("pot")}</span><h2>Участок открыт!</h2><p class="m3-lead">Амфора добавлена в находки. На острове стала доступна новая территория.</p></section>
         <section class="m3-dig-discovery">${penpotArt("resultTree", "m3-dig-tree")}<span><b>Лес и река</b><p>Новые места для построек и развития острова.</p></span></section>
         <section class="m3-dig-info"><b>Амфора найдена</b><p>Находка останется в коллекции острова.</p></section>
-        <button class="m3-primary m3-bottom-action" data-action="close">На остров</button><button class="m3-result-again" data-action="again">Еще одна смена</button>
+        <button class="m3-primary m3-bottom-action" data-action="close">На остров</button><button class="m3-result-again" data-action="again">Ещё одна смена</button>
       </main></section>`;
       return;
     }
@@ -422,15 +429,15 @@ export function mountMatchThree() {
       : reward.collected
         ? "Цель можно выполнить в следующий раз. Собранная добыча уже у тебя."
         : "Ты еще ничего не собрал. Можно начать новую смену.";
-    const retryLabel = reachedGoal ? "Еще одна смена" : "Еще одна попытка";
-    const helpTitle = reachedGoal ? theme.resultHelpTitle : reward.collected ? "Собранная добыча уже на складе" : "Вся добыча сохраняется";
-    const helpText = reachedGoal ? theme.resultHelpText : reward.collected ? "Попробуй еще раз, когда захочешь. Ресурсы не пропадут." : "Нет потери ресурсов и ограничений на число попыток. Попробуй еще раз, когда захочешь.";
-    root.innerHTML = `<section class="m3-screen m3-result${nightClass()}"><header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">‹</button><div><h1>${theme.title}</h1><p>Итоги смены</p></div></header><main>
+    const retryLabel = reachedGoal ? "Ещё одна смена" : "Ещё одна попытка";
+    const helpTitle = reachedGoal ? theme.resultHelpTitle : "Вся добыча сохраняется";
+    const helpText = reachedGoal ? theme.resultHelpText : "Нет потери ресурсов и ограничений на число попыток. Попробуй ещё раз, когда захочешь.";
+    root.innerHTML = `<section class="m3-screen m3-result${nightClass()}"><header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">${controlIcon("back")}</button><div><h1>${reachedGoal ? theme.title : "Итоги смены"}</h1><p>${reachedGoal ? "Итоги смены" : "Добыча сохранена"}</p></div></header><main>
       <section class="m3-result-hero${reachedGoal ? "" : " m3-result-hero--plain"}">${reachedGoal ? `<span class="m3-result-icon">${art("win")}</span>` : `<span class="m3-result-icon m3-result-icon--basket">${homeArt("basket")}</span>`}<h2>${title}</h2><p class="m3-lead">${detail}</p></section>
-      <section class="m3-result-card"><div><small>Собрано ${theme.resourceName}</small><b>${reward.collected}</b></div><div><small>${reward.bonus ? "Бонус за цель" : "Бонус не получен"}</small><b>${reward.bonus ? `+${reward.bonus}` : "—"}</b></div><div class="m3-result-total"><small>Всего на склад</small><b>${reward.total}</b></div></section>
-      <section class="m3-stock">${themeArt(theme, "m3-stock-art")}<div><small>Теперь на складе</small><i><em style="width:${(warehouse[theme.id] / 200) * 100}%"></em></i></div><b>${warehouse[theme.id]} / 200</b></section>
+      ${reachedGoal ? `<section class="m3-result-card"><div><small>Собрано ${theme.resourceName}</small><b>${reward.collected}</b></div><div><small>${reward.bonus ? "Бонус за цель" : "Бонус не получен"}</small><b>${reward.bonus ? `+${reward.bonus}` : "—"}</b></div><div class="m3-result-total"><small>Всего на склад</small><b>${reward.total}</b></div></section>
+      <section class="m3-stock">${themeArt(theme, "m3-stock-art")}<div><small>Теперь на складе</small><i><em style="width:${(warehouse[theme.id] / 200) * 100}%"></em></i></div><b>${warehouse[theme.id]} / 200</b></section>` : ""}
       <section class="m3-result-help"><b>${helpTitle}</b><p>${helpText}</p></section>
-      <button class="m3-primary m3-bottom-action" data-action="${reachedGoal ? "close" : "again"}">${reachedGoal ? "На остров" : retryLabel}</button><button class="m3-result-again" data-action="${reachedGoal ? "again" : "close"}">${reachedGoal ? retryLabel : "На остров"}</button>
+      <button class="m3-primary m3-bottom-action" data-action="${reachedGoal ? "close" : "hub"}">${reachedGoal ? "На остров" : "Выбрать смену"}</button><button class="m3-result-again" data-action="${reachedGoal ? "again" : "close"}">${reachedGoal ? retryLabel : "На остров"}</button>
     </main></section>`;
   }
 
@@ -439,6 +446,7 @@ export function mountMatchThree() {
     else if (screen === "brief") renderBrief();
     else if (screen === "game") renderGame();
     else renderResult();
+    root.querySelector(".m3-screen")?.insertAdjacentHTML("beforeend", overlay());
   }
 
   function startShift() {
@@ -455,10 +463,12 @@ export function mountMatchThree() {
       digDepth: selectedTheme.kind === "dig" ? savedDigDepth : 0,
       // В прототипе лесопилка начинает с одним зарядом, чтобы механику можно было проверить.
       lightningCharges: selectedTheme.id === "sawmill" ? 1 : 0,
+      lightningEnabled: selectedTheme.id === "sawmill",
       lightningArmed: false,
     };
     selected = undefined;
     hint = [];
+    lastLightningYield = undefined;
     result = undefined;
     presentationBoard = undefined;
     clearing = [];
@@ -495,7 +505,7 @@ export function mountMatchThree() {
   async function useLightning() {
     if (!shift || busy) return;
     if (shift.lightningCharges < 1) {
-      modal = "noCharges";
+      modal = shift.lightningEnabled ? "noCharges" : "noEnergy";
       render();
       return;
     }
@@ -521,6 +531,7 @@ export function mountMatchThree() {
     shift.lightningCharges--;
     shift.lightningArmed = false;
     shift.collected += earned;
+    lastLightningYield = earned;
     selected = undefined;
     updateGameFrame();
     updateGameActions();
@@ -538,6 +549,7 @@ export function mountMatchThree() {
   }
 
   async function playMove(from: Position, clicked: Position) {
+    lastLightningYield = undefined;
     if (!shift || busy || samePosition(potPosition(), from) || samePosition(potPosition(), clicked)) return;
     selected = undefined;
     hint = [];
@@ -607,6 +619,7 @@ export function mountMatchThree() {
       void useLightning();
       return;
     }
+    lastLightningYield = undefined;
     if (!selected || samePosition(selected, clicked)) {
       selected = samePosition(selected, clicked) ? undefined : clicked;
       hint = [];
@@ -668,6 +681,46 @@ export function mountMatchThree() {
     void playMove(start.position, target);
   });
   root.addEventListener("pointercancel", () => { swipeStart = undefined; });
+  // Фиксированные состояния для визуальной проверки. В production ветка удаляется Vite.
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has("match3-preview")) {
+    window.addEventListener("match3:preview", (event) => {
+      const fixture = (event as CustomEvent<{
+        theme: ShiftId; night: boolean; screen: Screen; modal?: Modal;
+        board?: Board; moves?: number; collected?: number; depth?: number;
+        charges?: number; lightningEnabled?: boolean; armed?: boolean; selected?: Position; hint?: Position[]; lightningYield?: number;
+        clearing?: Position[]; stock?: number; won?: boolean;
+      }>).detail;
+      if (busy) throw new Error("Дождитесь окончания анимации перед предпросмотром");
+      document.body.classList.toggle("night", fixture.night);
+      open();
+      root.classList.add("m3-preview");
+      selectedTheme = matchThreeThemes[fixture.theme];
+      screen = fixture.screen;
+      modal = fixture.modal;
+      shift = {
+        theme: selectedTheme, board: fixture.board ?? createBoard(selectedTheme.chips),
+        moves: fixture.moves ?? selectedTheme.moves, collected: fixture.collected ?? 0,
+        digDepth: fixture.depth ?? 0, lightningCharges: fixture.charges ?? 0,
+        lightningEnabled: fixture.lightningEnabled ?? (fixture.charges ?? 0) > 0,
+        lightningArmed: fixture.armed ?? false,
+      };
+      lastLightningYield = fixture.lightningYield;
+      selected = fixture.selected;
+      hint = fixture.hint ?? [];
+      clearing = fixture.clearing ?? [];
+      presentationBoard = undefined;
+      dropping = [];
+      swapping = undefined;
+      boardPhase = undefined;
+      warehouse[fixture.theme] = fixture.stock ?? 120;
+      result = fixture.screen === "result" ? {
+        theme: selectedTheme, digFound: fixture.theme === "dig" && !!fixture.won,
+        reward: resultReward(fixture.won ? selectedTheme.goal : (fixture.collected ?? 0), selectedTheme),
+      } : undefined;
+      render();
+      root.scrollTop = 0;
+    });
+  }
   publishWarehouse();
   render();
 }
