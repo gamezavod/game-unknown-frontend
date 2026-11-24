@@ -1,4 +1,5 @@
 import { renderArt } from "./ui-art";
+import { syncBrowserTheme } from "./theme";
 import { penpotVectors } from "./penpot-vectors";
 import {
   attemptMove,
@@ -160,14 +161,6 @@ export function mountMatchThree() {
     | undefined;
 
   const nightClass = () => (document.body.classList.contains("night") ? " m3-screen--night" : "");
-  const setBrowserChrome = (color: string, scheme: "light" | "dark" = "light") => {
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
-    document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')?.setAttribute("content", scheme);
-    // На iOS 26 цвет безопасной зоны берется из html/body, а не из theme-color.
-    document.documentElement.style.backgroundColor = color;
-    document.body.style.backgroundColor = color;
-    document.documentElement.style.colorScheme = scheme;
-  };
 
   const publishWarehouse = () => {
     window.dispatchEvent(new CustomEvent("match3:warehouse", {
@@ -184,20 +177,14 @@ export function mountMatchThree() {
     root.hidden = true;
     modal = undefined;
     document.body.classList.remove("match3-open");
-    setBrowserChrome(
-      document.body.classList.contains("night") ? "#102a40" : "#bdd6d3",
-      document.body.classList.contains("night") ? "dark" : "light",
-    );
+    syncBrowserTheme();
   };
   const open = () => {
     root.hidden = false;
     document.body.classList.add("match3-open");
     screen = "hub";
     modal = undefined;
-    setBrowserChrome(
-      document.body.classList.contains("night") ? "#0d202b" : "#f1f5ef",
-      document.body.classList.contains("night") ? "dark" : "light",
-    );
+    syncBrowserTheme();
     render();
   };
   entry.addEventListener("click", open);

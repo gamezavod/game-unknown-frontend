@@ -16,6 +16,7 @@ import {
 } from "./selection";
 import { TapGesture } from "./gestures";
 import { mountMatchThree } from "./match3-ui";
+import { mountSystemTheme } from "./theme";
 import { penpotHomeIcons } from "./penpot-home-icons";
 import "@fontsource-variable/inter-tight";
 import "./style.css";
@@ -39,6 +40,7 @@ function mountHomeHud() {
 }
 
 async function start() {
+  mountSystemTheme();
   mountHomeHud();
   mountMatchThree();
   const cells = await demoMapSource.load();
@@ -145,31 +147,7 @@ async function start() {
   sun.shadow.bias = -0.00015;
   const atmosphere = createAtmosphere(cells, center, span, camera, renderer);
   scene.add(atmosphere.root);
-  let night = false,
-    nightBlend = 0,
-    automatic = false;
-  const setPageChrome = (color: string, scheme: "light" | "dark") => {
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
-    document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')?.setAttribute("content", scheme);
-    document.documentElement.style.backgroundColor = color;
-    document.body.style.backgroundColor = color;
-    document.documentElement.style.colorScheme = scheme;
-  };
-  $("time-toggle").addEventListener("click", () => {
-    night = !night;
-    document.body.classList.toggle("night", night);
-    if (!document.body.classList.contains("match3-open")) {
-      setPageChrome(night ? "#132f4b" : "#bdd6d3", night ? "dark" : "light");
-    }
-    $("time-toggle").setAttribute("aria-pressed", String(night));
-    $("time-toggle").textContent = night ? "☾ Ночь" : "☀ День";
-  });
-  document
-    .querySelector<HTMLInputElement>("#auto-time")!
-    .addEventListener("change", (e) => {
-      automatic = (e.target as HTMLInputElement).checked;
-    });
-  let cycleElapsed = 0;
+  let nightBlend = document.body.classList.contains("night") ? 1 : 0;
   const selection = createCellSelection(cells, (index, c) => {
     island.select(index);
     $("cell-title").textContent =
@@ -274,13 +252,7 @@ async function start() {
     | undefined;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
-    if (automatic) {
-      cycleElapsed += dt;
-      if (cycleElapsed > 35) {
-        cycleElapsed = 0;
-        $("time-toggle").click();
-      }
-    }
+    const night = document.body.classList.contains("night");
     nightBlend = T.MathUtils.damp(nightBlend, night ? 1 : 0, 2, dt);
     (scene.background as T.Color)
       .copy(dayBackground)
