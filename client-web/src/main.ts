@@ -16,6 +16,7 @@ import {
 } from "./selection";
 import { TapGesture } from "./gestures";
 import { mountMatchThree } from "./match3-ui";
+import type { Warehouse } from "./match3-api";
 import { mountSystemTheme } from "./theme";
 import { penpotHomeIcons } from "./penpot-home-icons";
 import "@fontsource-variable/inter-tight";
@@ -31,10 +32,12 @@ function mountHomeHud() {
     image.outerHTML = renderArt(penpotHomeIcons[name], `home-art home-icon--${name}`);
   });
   window.addEventListener("match3:warehouse", (event) => {
-    const detail = (event as CustomEvent<Record<string, number>>).detail;
-    Object.entries(detail).forEach(([resource, value]) => {
+    const detail = (event as CustomEvent<Warehouse>).detail;
+    Object.entries(detail).forEach(([resource, stock]) => {
       const element = document.querySelector<HTMLElement>(`[data-home-resource="${resource}"]`);
-      if (element) element.textContent = String(value);
+      if (!element) return;
+      element.textContent = String(stock.amount);
+      if (element.nextElementSibling) element.nextElementSibling.textContent = `/ ${stock.limit}`;
     });
   });
 }
