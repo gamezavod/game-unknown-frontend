@@ -7,6 +7,8 @@ export const terrainNames = {
   rock: "Горы",
   coast: "Побережье",
   water: "Вода",
+  river: "Река",
+  fog: "Неисследованный участок",
 };
 export const buildingNames = {
   townHall: "Ратуша",
@@ -16,6 +18,7 @@ export const buildingNames = {
   warehouse: "Склад",
 };
 export type Terrain = keyof typeof terrainNames;
+export const isWaterTerrain = (type: Terrain) => type === "water" || type === "river";
 export type Building = keyof typeof buildingNames;
 export interface Cell extends Axial {
   type: Terrain;
@@ -26,6 +29,8 @@ export interface Cell extends Axial {
   /** Вариант декоративной модели (0–2), без влияния на механику. */
   variant?: number;
   building?: Building;
+  /** Признак посадки для рендера, ландшафт до роста остаётся лугом. */
+  sapling?: boolean;
 }
 export interface MapSource {
   load(): Promise<Cell[]>;

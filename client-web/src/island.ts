@@ -1,9 +1,9 @@
 import * as T from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { axialToWorld } from "./hex";
+import { axialToWorld, hexDirections } from "./hex";
 import { canSelectCell } from "./selection";
 import { forestLayout, mountainLayout } from "./scenery";
-import { mapBounds, type Cell, type Building } from "./map-data";
+import { isWaterTerrain, mapBounds, type Cell, type Building } from "./map-data";
 
 export const HEX_RADIUS = 1.25;
 const buildingModels: Record<Building, string> = {
@@ -18,6 +18,31 @@ const rockModels = [
   "mountain_B_grass_trees",
   "mountain_C_grass",
 ];
+const loader = new GLTFLoader();
+const modelCache = new Map<string, Promise<T.Group>>();
+
+function loadModel(path: string) {
+  let cached = modelCache.get(path);
+  if (!cached) {
+    cached = loader.loadAsync(`${import.meta.env.BASE_URL}kaykit/${path}.gltf`).then(({ scene }) => {
+      scene.traverse((object) => {
+        if (!(object instanceof T.Mesh)) return;
+        object.castShadow = true;
+        object.receiveShadow = true;
+        if (path === "tiles/base/hex_grass") {
+          object.material = (object.material as T.MeshStandardMaterial).clone();
+          (object.material as T.MeshStandardMaterial).color.set(0xd2d6a0);
+        }
+      });
+      return scene;
+    }).catch((error) => {
+      modelCache.delete(path);
+      throw error;
+    });
+    modelCache.set(path, cached);
+  }
+  return cached;
+}
 function decorationPath(c: Cell) {
   if (c.building) return buildingModels[c.building];
   return c.type === "rock"
@@ -25,8 +50,7 @@ function decorationPath(c: Cell) {
     : undefined;
 }
 export async function createIsland(cells: Cell[]) {
-  const root = new T.Group(),
-    loader = new GLTFLoader();
+  const root = new T.Group();
   const mountains = mountainLayout(cells, HEX_RADIUS);
   const paths = new Set([
     "tiles/base/hex_grass",
@@ -39,32 +63,7 @@ export async function createIsland(cells: Cell[]) {
     const path = decorationPath(c);
     if (path && c.state === "visible") paths.add(path);
   }
-  const models = new Map(
-    await Promise.all(
-      [...paths].map(
-        async (path) =>
-          [
-            path,
-            (
-              await loader.loadAsync(
-                `${import.meta.env.BASE_URL}kaykit/${path}.gltf`,
-              )
-            ).scene,
-          ] as const,
-      ),
-    ),
-  );
-  for (const [path, model] of models)
-    model.traverse((o) => {
-      if (!(o instanceof T.Mesh)) return;
-      o.castShadow = true;
-      o.receiveShadow = true;
-      // Убираем выбеленный жёлтый оттенок травы, сохраняя UV и палитру KayKit.
-      if (path === "tiles/base/hex_grass") {
-        o.material = (o.material as T.MeshStandardMaterial).clone();
-        (o.material as T.MeshStandardMaterial).color.set(0xd2d6a0);
-      }
-    });
+  const models = new Map(await Promise.all([...paths].map(async (path) => [path, await loadModel(path)] as const)));
   const scale = HEX_RADIUS / (2 / Math.sqrt(3));
   const settlement = cells
     .filter((c) => c.building)
@@ -111,6 +110,8 @@ export async function createIsland(cells: Cell[]) {
     transparent: true,
     opacity: 0.25,
   });
+  const riverMaterial = new T.MeshStandardMaterial({ color: 0x3e9dac, roughness: 0.72 });
+  const fogMaterial = new T.MeshStandardMaterial({ color: 0xc0d7d4, transparent: true, opacity: 0.58, roughness: 1 });
   const hexGeometry = new T.CylinderGeometry(HEX_RADIUS, HEX_RADIUS, 1, 6);
   const rockGeometry = new T.CylinderGeometry(
     HEX_RADIUS * 0.995,
@@ -119,16 +120,8 @@ export async function createIsland(cells: Cell[]) {
     6,
   );
   const land = new Set(
-    cells.filter((c) => c.type !== "water").map((c) => `${c.q},${c.r}`),
+    cells.filter((c) => !isWaterTerrain(c.type) && c.type !== "fog").map((c) => `${c.q},${c.r}`),
   );
-  const directions = [
-    [1, 0],
-    [0, 1],
-    [-1, 1],
-    [-1, 0],
-    [0, -1],
-    [1, -1],
-  ];
   const picking: T.Object3D[] = [],
     tileRoots: T.Group[] = [];
   const vertices: number[] = [],
@@ -139,21 +132,27 @@ export async function createIsland(cells: Cell[]) {
     tile.position.set(x, cell.height, z);
     root.add(tile);
     tileRoots.push(tile);
-    if (cell.type === "water" || cell.state === "unexplored") {
+    const water = isWaterTerrain(cell.type);
+    if (water || cell.state === "unexplored") {
+      const material = cell.type === "river" ? riverMaterial : water ? waterMaterial : cell.type === "fog" ? fogMaterial : unknownMaterial;
       const mesh = new T.Mesh(
         hexGeometry,
-        cell.type === "water" ? waterMaterial : unknownMaterial,
+        material,
       );
-      mesh.scale.y = cell.type === "water" ? 0.025 : 0.26;
+      mesh.scale.set(cell.type === "fog" ? 0.94 : 1, water || cell.type === "fog" ? 0.025 : 0.26, cell.type === "fog" ? 0.94 : 1);
       mesh.position.y = -mesh.scale.y / 2;
-      mesh.castShadow = cell.type !== "water";
+      mesh.castShadow = !water && cell.type !== "fog";
       mesh.receiveShadow = true;
       tile.add(mesh);
     } else {
       const base = models.get("tiles/base/hex_grass")!.clone(true);
       base.scale.set(scale * 0.997, 0.26, scale * 0.997);
       tile.add(base);
-      if (cell.type === "forest" && !cell.building) {
+      if (cell.sapling) {
+        const tree = models.get("decoration/nature/tree_single_A")!.clone(true);
+        tree.scale.setScalar(scale * 0.33);
+        tile.add(tree);
+      } else if (cell.type === "forest" && !cell.building) {
         for (const tree of forestLayout(cell)) {
           const model = models
             .get(`decoration/nature/tree_single_${tree.species}`)!
@@ -189,7 +188,7 @@ export async function createIsland(cells: Cell[]) {
         }
       }
     }
-    if (cell.type !== "water") {
+    if (!water && cell.type !== "fog") {
       // Тёмный скальный фундамент и два слоя грунта под тонкой травяной шапкой.
       const layer = (
         bottom: number,
@@ -222,13 +221,13 @@ export async function createIsland(cells: Cell[]) {
         1.001,
         stratumMaterial,
       );
-      const coastal = directions.some(
+      const coastal = hexDirections.some(
         ([q, r]) => !land.has(`${cell.q + q},${cell.r + r}`),
       );
       if (coastal) {
         layer(-0.08, 0.12, 1.06, sandMaterial);
         // Крупные камни у открытых граней, а не одинаковое кольцо вокруг каждого гекса.
-        directions.forEach(([q, r], edge) => {
+        hexDirections.forEach(([q, r], edge) => {
           if (
             land.has(`${cell.q + q},${cell.r + r}`) ||
             (cell.q + cell.r + edge) % 3 === 0
@@ -261,7 +260,7 @@ export async function createIsland(cells: Cell[]) {
           tile.add(rock);
         });
       }
-      directions.forEach(([q, r]) => {
+      hexDirections.forEach(([q, r]) => {
         if (land.has(`${cell.q + q},${cell.r + r}`)) return;
         const delta = axialToWorld({ q, r }, 1),
           angle = Math.atan2(delta.x, delta.z);
@@ -368,11 +367,30 @@ export async function createIsland(cells: Cell[]) {
     framingPoints,
     bounds: mapBounds(cells, HEX_RADIUS),
     select(index: number) {
-      if (!canSelectCell(cells, index)) return false;
+      if (!canSelectCell(cells, index) && cells[index]?.type !== "fog") return false;
       selection.position.copy(tileRoots[index].position);
       selection.position.y += 0.035;
       selection.visible = true;
       return true;
+    },
+    clearSelection() {
+      selection.visible = false;
+    },
+    dispose() {
+      const geometries = new Set<T.BufferGeometry>();
+      const materials = new Set<T.Material>();
+      root.traverse((object) => {
+        if (!(object instanceof T.Mesh || object instanceof T.LineSegments)) return;
+        geometries.add(object.geometry);
+        for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
+      });
+      for (const model of models.values()) model.traverse((object) => {
+        if (!(object instanceof T.Mesh)) return;
+        geometries.delete(object.geometry);
+        for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.delete(material);
+      });
+      geometries.forEach((geometry) => geometry.dispose());
+      materials.forEach((material) => material.dispose());
     },
   };
 }

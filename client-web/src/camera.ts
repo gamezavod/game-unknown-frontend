@@ -1,6 +1,6 @@
 import * as T from "three";
 import { axialToWorld } from "./hex";
-import type { Cell } from "./map-data";
+import { isWaterTerrain, type Cell } from "./map-data";
 import type { FogRegion } from "./northern-fog";
 import { fogOpacityAlongRay } from "./fog-sampling";
 
@@ -53,7 +53,7 @@ export function openIslandNavigation(
 ): OpenIslandNavigation {
   const shore: T.Vector3[] = [];
   for (const cell of cells) {
-    if (cell.state !== "visible" || cell.type === "water") continue;
+    if (cell.state !== "visible" || isWaterTerrain(cell.type)) continue;
     const p = axialToWorld(cell, radius);
     for (let i = 0; i < 6; i++)
       shore.push(

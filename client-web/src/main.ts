@@ -1,21 +1,22 @@
 import { renderArt } from "./ui-art";
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { createIsland } from "./island";
+import { createIsland, HEX_RADIUS } from "./island";
 import {
   fitIslandCamera,
   cameraPanBounds,
   openIslandNavigation,
 } from "./camera";
 import { createAtmosphere } from "./atmosphere";
-import { demoMapSource, terrainNames, buildingNames } from "./map-data";
-import {
-  createCellSelection,
-  selectableCellIndices,
-  canPickCell,
-} from "./selection";
+import { demoMapSource, terrainNames, buildingNames, isWaterTerrain, type Cell } from "./map-data";
+import { canPickCell } from "./selection";
+import { hexKey, type Axial } from "./hex";
+import { GameApiError } from "./game-api";
+import { renderCells, worldApi, type ForestAction, type IslandSnapshot } from "./world-api";
 import { TapGesture } from "./gestures";
 import { mountMatchThree } from "./match3-ui";
+import type { Warehouse } from "./match3-api";
+import { mountSystemTheme } from "./theme";
 import { penpotHomeIcons } from "./penpot-home-icons";
 import "@fontsource-variable/inter-tight";
 import "./style.css";
@@ -30,20 +31,34 @@ function mountHomeHud() {
     image.outerHTML = renderArt(penpotHomeIcons[name], `home-art home-icon--${name}`);
   });
   window.addEventListener("match3:warehouse", (event) => {
-    const detail = (event as CustomEvent<Record<string, number>>).detail;
-    Object.entries(detail).forEach(([resource, value]) => {
+    const detail = (event as CustomEvent<Warehouse>).detail;
+    Object.entries(detail).forEach(([resource, stock]) => {
       const element = document.querySelector<HTMLElement>(`[data-home-resource="${resource}"]`);
-      if (element) element.textContent = String(value);
+      if (!element) return;
+      element.textContent = String(stock.amount);
+      if (element.nextElementSibling) element.nextElementSibling.textContent = `/ ${stock.limit}`;
     });
   });
 }
 
 async function start() {
+  mountSystemTheme();
   mountHomeHud();
-  mountMatchThree();
-  const cells = await demoMapSource.load();
-  const island = await createIsland(cells);
-  const openIsland = openIslandNavigation(cells, 1.25);
+  const shifts = mountMatchThree();
+  const preview = import.meta.env.DEV && new URLSearchParams(location.search).has("match3-preview");
+  let snapshot: IslandSnapshot | undefined;
+  if (!preview) {
+    try {
+      snapshot = await worldApi.load();
+    } catch (error) {
+      console.error(error);
+      showError("Не удалось загрузить остров с сервера. Проверьте соединение и обновите страницу.");
+      return;
+    }
+  }
+  let cells = snapshot ? renderCells(snapshot) : await demoMapSource.load();
+  let island = await createIsland(cells);
+  let openIsland = openIslandNavigation(cells, HEX_RADIUS);
   const renderer = new T.WebGLRenderer({
     canvas,
     antialias: true,
@@ -58,7 +73,7 @@ async function start() {
   scene.background = new T.Color(0x9bbdb4);
   scene.add(island.root);
   const b = island.bounds;
-  const span = Math.max(b.width, b.depth, b.maxHeight + 4);
+  let span = Math.max(b.width, b.depth, b.maxHeight + 4);
   const center = island.visualBounds.getCenter(new T.Vector3());
   const camera = new T.OrthographicCamera(-10, 10, 10, -10, 0.1, span * 15);
   scene.fog = new T.Fog(0x9bbdb4, span * 4.5, span * 9);
@@ -105,6 +120,11 @@ async function start() {
     if (e.key === "+" || e.key === "=") zoom(1.2);
     else if (e.key === "-") zoom(1 / 1.2);
     else if (e.key === "Home") reset();
+    else if (e.key === "Enter" && snapshot) {
+      showCellList = true;
+      renderPanel();
+      cellSelect.focus();
+    }
     else if (
       ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)
     ) {
@@ -143,77 +163,187 @@ async function start() {
   });
   sun.shadow.normalBias = 0.025;
   sun.shadow.bias = -0.00015;
-  const atmosphere = createAtmosphere(cells, center, span, camera, renderer);
+  let atmosphere = createAtmosphere(cells, center, span, camera, renderer, !!snapshot);
   scene.add(atmosphere.root);
-  let night = false,
-    nightBlend = 0,
-    automatic = false;
-  const setPageChrome = (color: string, scheme: "light" | "dark") => {
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
-    document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')?.setAttribute("content", scheme);
-    document.documentElement.style.backgroundColor = color;
-    document.body.style.backgroundColor = color;
-    document.documentElement.style.colorScheme = scheme;
-  };
-  $("time-toggle").addEventListener("click", () => {
-    night = !night;
-    document.body.classList.toggle("night", night);
-    if (!document.body.classList.contains("match3-open")) {
-      setPageChrome(night ? "#132f4b" : "#bdd6d3", night ? "dark" : "light");
-    }
-    $("time-toggle").setAttribute("aria-pressed", String(night));
-    $("time-toggle").textContent = night ? "☾ Ночь" : "☀ День";
-  });
-  document
-    .querySelector<HTMLInputElement>("#auto-time")!
-    .addEventListener("change", (e) => {
-      automatic = (e.target as HTMLInputElement).checked;
+  let nightBlend = document.body.classList.contains("night") ? 1 : 0;
+  const panel = $("island-panel");
+  const actionButton = $("island-action") as HTMLButtonElement;
+  const cellSelect = $("island-select") as HTMLSelectElement;
+  let selectedCell: Axial | undefined;
+  let showCellList = false;
+  let working = false;
+  let syncFailed = false;
+  let mapMessage = "";
+  let refreshTimer: number | undefined;
+  let worldQueue = Promise.resolve();
+
+  function renderPanel() {
+    const index = selectedCell ? cells.findIndex((cell) => hexKey(cell) === hexKey(selectedCell!)) : -1;
+    const cell = cells[index];
+    panel.hidden = !snapshot || (!cell && !showCellList && !mapMessage);
+    if (panel.hidden) return;
+    const inFog = cell?.type === "fog";
+    const differentSite = inFog && snapshot?.activeSite && hexKey(snapshot.activeSite) !== hexKey(cell);
+    $("island-title").textContent = cell ? cell.building ? buildingNames[cell.building] : terrainNames[cell.type] : "Участки острова";
+    $("island-lookup").hidden = !showCellList;
+    cellSelect.value = index < 0 ? "" : String(index);
+    $("island-status").textContent = mapMessage || (cell?.sapling ? "Здесь растёт саженец." : differentSite ? "Сначала закончи раскопки на начатом участке." : "");
+    $("island-status").hidden = !$("island-status").textContent;
+    const action = syncFailed ? "refresh"
+      : inFog && !differentSite ? "dig"
+      : cell && !cell.building && cell.type === "forest" ? "chopForest"
+      : cell && !cell.building && cell.type === "grass" && !cell.sapling ? "plantForest"
+      : undefined;
+    const labels = {
+      refresh: "Обновить остров",
+      dig: snapshot?.activeSite ? "Продолжить раскопки" : "Начать раскопки",
+      chopForest: "Срубить лес",
+      plantForest: "Посадить лес",
+    };
+    actionButton.hidden = !action;
+    actionButton.dataset.action = action;
+    actionButton.textContent = action ? labels[action] : "";
+    actionButton.disabled = working;
+  }
+
+  function fillCellList() {
+    const options = cells.flatMap((cell, index) => {
+      if (isWaterTerrain(cell.type)) return [];
+      const title = cell.building ? buildingNames[cell.building] : terrainNames[cell.type];
+      return [new Option(title + " · " + cell.q + ", " + cell.r, String(index))];
     });
-  let cycleElapsed = 0;
-  const selection = createCellSelection(cells, (index, c) => {
-    island.select(index);
-    $("cell-title").textContent =
-      c.state === "unexplored"
-        ? "Неизведанная земля"
-        : c.building
-          ? buildingNames[c.building]
-          : terrainNames[c.type];
-    $("cell-coordinates").textContent = `q: ${c.q} · r: ${c.r}`;
-    $("cell-type").textContent =
-      c.state === "unexplored" ? "Скрыта туманом" : terrainNames[c.type];
-    $("cell-state").textContent =
-      c.state === "unexplored"
-        ? "Не исследована"
-        : c.building
-          ? "Стартовое здание"
-          : "Природная территория";
-    document.querySelector<HTMLSelectElement>("#cell-select")!.value =
-      String(index);
-    $("selection").hidden = false;
-    $("selection-hint").hidden = true;
-  });
-  const select = selection.select;
-  $("map-count").textContent =
-    `${cells.length} клеток · ${cells.filter((c) => c.building).length} зданий`;
-  const cellSelect = document.querySelector<HTMLSelectElement>("#cell-select")!;
-  selectableCellIndices(cells).forEach((index) => {
-    const c = cells[index];
-    const option = new Option(
-      `${c.q}, ${c.r} · ${c.state === "unexplored" ? "Не исследована" : c.building ? buildingNames[c.building] : terrainNames[c.type]}`,
-      String(index),
-    );
-    cellSelect.add(option);
-  });
+    cellSelect.replaceChildren(new Option("Выберите участок", ""), ...options);
+  }
+
+  function selectCell(index: number) {
+    const cell = cells[index];
+    if (!cell || !island.select(index)) return;
+    selectedCell = { q: cell.q, r: cell.r };
+    mapMessage = "";
+    renderPanel();
+  }
+
+  function closePanel() {
+    selectedCell = undefined;
+    mapMessage = "";
+    showCellList = false;
+    island.clearSelection();
+    renderPanel();
+  }
+
+  function scheduleGrowth() {
+    window.clearTimeout(refreshTimer);
+    if (!snapshot?.saplings.length) return;
+    const next = Math.min(...snapshot.saplings.map((sapling) => sapling.plantedAt + sapling.growthDurationMs));
+    refreshTimer = window.setTimeout(() => updateWorld(), Math.max(4000, next - Date.now()));
+  }
+
+  function footprint(cell: Cell) {
+    const terrain = isWaterTerrain(cell.type) || cell.type === "fog" ? cell.type : "land";
+    return [cell.q, cell.r, terrain, cell.height];
+  }
+
+  async function applySnapshot(next: IslandSnapshot, focus?: Axial) {
+    const updated = renderCells(next);
+    if (JSON.stringify(cells) !== JSON.stringify(updated)) {
+      const expanded = JSON.stringify(cells.map(footprint)) !== JSON.stringify(updated.map(footprint));
+      const newIsland = await createIsland(updated);
+      scene.remove(island.root);
+      island.dispose();
+      island = newIsland;
+      scene.add(island.root);
+      cells = updated;
+
+      if (expanded) {
+        const { width, depth, maxHeight } = island.bounds;
+        span = Math.max(width, depth, maxHeight + 4);
+        island.visualBounds.getCenter(center);
+        camera.far = span * 15;
+        (scene.fog as T.Fog).near = span * 4.5;
+        (scene.fog as T.Fog).far = span * 9;
+        shoreFill.position.set(span * 0.2, span * 0.12, span).add(center);
+        shoreFill.target.position.copy(center);
+        sun.position.set(-span * 0.65, span * 0.85, -span * 0.45).add(center);
+        sun.target.position.copy(center);
+        Object.assign(sun.shadow.camera, { left: -span * 0.65, right: span * 0.65, top: span * 0.65, bottom: -span * 0.65, far: span * 5 });
+        sun.shadow.camera.updateProjectionMatrix();
+        scene.remove(atmosphere.root);
+        atmosphere.dispose();
+        atmosphere = createAtmosphere(cells, center, span, camera, renderer, true);
+        scene.add(atmosphere.root);
+        openIsland = openIslandNavigation(cells, HEX_RADIUS);
+        resize();
+      }
+      fillCellList();
+    }
+
+    snapshot = next;
+    const destination = focus ?? selectedCell;
+    if (destination) {
+      const index = cells.findIndex((cell) => hexKey(cell) === hexKey(destination));
+      if (index >= 0 && island.select(index)) selectedCell = destination;
+    }
+  }
+
+  function updateWorld(forestEdit?: { type: ForestAction; position: Axial }, focus?: Axial) {
+    if (!snapshot) return;
+    worldQueue = worldQueue.then(async () => {
+      if (!snapshot) return;
+      working = true;
+      renderPanel();
+      try {
+        const next = forestEdit
+          ? await worldApi.forest(forestEdit.type, forestEdit.position, snapshot.serverSavedAt)
+          : await worldApi.load();
+        await applySnapshot(next, focus);
+        syncFailed = false;
+        mapMessage = focus ? "Новый участок открыт." : "";
+      } catch (error) {
+        if (forestEdit && error instanceof GameApiError && error.status === 409) {
+          try {
+            await applySnapshot(await worldApi.load());
+            syncFailed = false;
+            mapMessage = "Остров обновился. Проверь участок и попробуй ещё раз.";
+            return;
+          } catch {
+            // Следующая попытка начнётся с загрузки актуальной карты.
+          }
+        }
+        syncFailed = true;
+        mapMessage = "Не удалось обновить остров. Попробуй ещё раз.";
+      } finally {
+        working = false;
+        renderPanel();
+        scheduleGrowth();
+      }
+    });
+  }
+
+  fillCellList();
+  scheduleGrowth();
   cellSelect.addEventListener("change", () => {
-    if (cellSelect.value !== "") {
-      if (!select(Number(cellSelect.value)))
-        cellSelect.value =
-          selection.selectedIndex === undefined
-            ? ""
-            : String(selection.selectedIndex);
-      document.querySelector<HTMLDetailsElement>(".lookup")!.open = false;
+    if (cellSelect.value !== "") selectCell(Number(cellSelect.value));
+  });
+  $("island-close").addEventListener("click", closePanel);
+  actionButton.addEventListener("click", () => {
+    if (working) return;
+    const action = actionButton.dataset.action;
+    if (action === "refresh") updateWorld();
+    else if (selectedCell && action === "dig") {
+      const target = selectedCell;
+      closePanel();
+      shifts.openDig(target);
+    } else if (selectedCell && (action === "chopForest" || action === "plantForest")) {
+      updateWorld({ type: action, position: selectedCell });
     }
   });
+  window.addEventListener("match3:cell-revealed", (event) => {
+    updateWorld(undefined, (event as CustomEvent<Axial>).detail);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) updateWorld();
+  });
+
   const gesture = new TapGesture(),
     ray = new T.Raycaster();
   canvas.addEventListener("pointerdown", (e) => {
@@ -236,18 +366,14 @@ async function start() {
       camera,
     );
     const hit = ray.intersectObjects(island.picking, false)[0];
-    if (
-      hit &&
-      canPickCell(
-        cells,
-        hit.object.userData.cellIndex,
-        ray.ray,
-        hit.distance,
-        atmosphere.fog.region,
-        clock.elapsedTime,
-      )
-    )
-      select(hit.object.userData.cellIndex as number);
+    if (!hit) {
+      closePanel();
+      return;
+    }
+    const index = hit.object.userData.cellIndex as number;
+    if (cells[index]?.type === "fog" || canPickCell(cells, index, ray.ray, hit.distance, atmosphere.fog.region, clock.elapsedTime)) {
+      selectCell(index);
+    }
   });
   function resize() {
     renderer.setSize(innerWidth, innerHeight);
@@ -274,13 +400,7 @@ async function start() {
     | undefined;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
-    if (automatic) {
-      cycleElapsed += dt;
-      if (cycleElapsed > 35) {
-        cycleElapsed = 0;
-        $("time-toggle").click();
-      }
-    }
+    const night = document.body.classList.contains("night");
     nightBlend = T.MathUtils.damp(nightBlend, night ? 1 : 0, 2, dt);
     (scene.background as T.Color)
       .copy(dayBackground)

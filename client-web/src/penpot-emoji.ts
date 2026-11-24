@@ -17,6 +17,6 @@ export const match3Icons = {
   "rules": "/ui/noto-emoji/emoji_u1f4d6.svg",
   "box": "/ui/noto-emoji/emoji_u1f4e6.svg",
   "mine": "/ui/noto-emoji/emoji_u26cf.svg",
-  "rulesExample": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 330 44\"><image href=\"/ui/noto-emoji/emoji_u1f34e.svg\" x=\"0\" width=\"44\" height=\"44\"/><image href=\"/ui/noto-emoji/emoji_u1f34e.svg\" x=\"48\" width=\"44\" height=\"44\"/><image href=\"/ui/noto-emoji/emoji_u1f34e.svg\" x=\"96\" width=\"44\" height=\"44\"/></svg>"
+  "rulesExample": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 330 44\"><image href=\"/ui/noto-emoji/emoji_u1f34e.svg\" x=\"95\" width=\"44\" height=\"44\"/><image href=\"/ui/noto-emoji/emoji_u1f34e.svg\" x=\"143\" width=\"44\" height=\"44\"/><image href=\"/ui/noto-emoji/emoji_u1f34e.svg\" x=\"191\" width=\"44\" height=\"44\"/></svg>"
 } as const;
 export type Match3IconName = keyof typeof match3Icons;

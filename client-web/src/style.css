@@ -455,7 +455,7 @@ footer b {
 .home-resource {
   position: relative;
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 34px 13px 21px;
   justify-content: center;
   align-items: center;
@@ -475,7 +475,8 @@ footer b {
 .home-resource .home-art { grid-column: 1 / -1; justify-self: center; width: 30px; height: 30px; object-fit: contain; }
 .home-resource small { grid-column: 1 / -1; color: #5f796f; font: 600 10px/1.2 "Inter Tight Variable", Inter, sans-serif; }
 .home-resource b { color: #1f4b3f; font: 700 17px/1 "Inter Tight Variable", Inter, sans-serif; }
-.home-resource > span:not(.home-art) { align-self: end; padding-bottom: 2px; color: #5f796f; font: 500 10px/1 "Inter Tight Variable", Inter, sans-serif; }
+.home-resource-amount { display: flex; justify-content: center; align-items: baseline; gap: 4px; white-space: nowrap; }
+.home-resource-amount > span { color: #5f796f; font: 500 10px/1 "Inter Tight Variable", Inter, sans-serif; }
 .home-happiness {
   display: flex;
   align-items: center;

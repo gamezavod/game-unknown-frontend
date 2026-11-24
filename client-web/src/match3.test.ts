@@ -3,6 +3,7 @@ import {
   attemptMove,
   boardSize,
   createBoard,
+  chipPresentation,
   dropAndRefill,
   findMatches,
   findPossibleMoves,
@@ -116,6 +117,48 @@ test("для всех пяти смен создается стабильное 
     expect(findMatches(board)).toEqual([]);
     expect(findPossibleMoves(board).length).toBeGreaterThan(0);
   }
+});
+
+test("в одной смене нет разных типов фишек с одинаковым изображением", () => {
+  for (const theme of Object.values(matchThreeThemes)) {
+    const images = theme.chips.map((chip) => chipPresentation[chip].emoji);
+    expect(new Set(images).size, theme.id).toBe(theme.chips.length);
+  }
+});
+
+test("в раскопках горизонтальные и вертикальные ряды камней совпадают", () => {
+  const board: Board = [
+    ["rock", "rock", "rock", "brick"],
+    ["brick", "sprout", "autumn", "rock"],
+    ["sprout", "autumn", "brick", "rock"],
+    ["autumn", "brick", "sprout", "rock"],
+  ];
+  expect(matchThreeThemes.dig.chips.filter((chip) => chipPresentation[chip].name === "Камень")).toEqual(["rock"]);
+  expect(findMatches(board)).toEqual(expect.arrayContaining([
+    { row: 0, column: 0 }, { row: 0, column: 1 }, { row: 0, column: 2 },
+    { row: 1, column: 3 }, { row: 2, column: 3 }, { row: 3, column: 3 },
+  ]));
+  expect(findMatches(board)).toHaveLength(6);
+});
+
+test("обмен в раскопках собирает ряд камней", () => {
+  const board: Board = [
+    ["rock", "rock", "brick", "autumn"],
+    ["brick", "sprout", "rock", "rock"],
+    ["sprout", "autumn", "brick", "sprout"],
+    ["autumn", "brick", "sprout", "brick"],
+  ];
+  let seed = 17;
+  const move = attemptMove(board, { row: 1, column: 2 }, { row: 0, column: 2 }, matchThreeThemes.dig, () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  });
+  expect(findMatches(board)).toEqual([]);
+  expect(move.accepted).toBe(true);
+  expect(move.steps[0].cleared).toEqual([
+    { row: 0, column: 0 }, { row: 0, column: 1 }, { row: 0, column: 2 },
+  ]);
+  expect(findMatches(move.board)).toEqual([]);
 });
 
 test("темы совпадают с правилами смен из макетов", () => {

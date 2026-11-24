@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <meta name="theme-color" content="#124b5c" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/island.svg" type="image/svg+xml" />
     <title>Свой остров — Первый берег</title>
   </head>
@@ -15,18 +15,27 @@
     <canvas
       id="scene"
       tabindex="0"
-      aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Выбор клетки также доступен в списке."
+      aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Нажмите Enter для списка участков."
     ></canvas>
     <div id="home-ui" aria-label="Главный экран острова">
       <div class="home-frame">
         <section class="home-hud" aria-label="Ресурсы острова">
           <div class="home-resources">
-            <div class="home-resource"><img data-home-icon="wood" alt="" /><small>Дерево</small><b data-home-resource="wood">120</b><span>/ 200</span></div>
-            <div class="home-resource"><img data-home-icon="food" alt="" /><small>Еда</small><b data-home-resource="food">80</b><span>/ 200</span></div>
-            <div class="home-resource"><img data-home-icon="stone" alt="" /><small>Камень</small><b data-home-resource="stone">60</b><span>/ 200</span></div>
-            <div class="home-resource"><img data-home-icon="iron" alt="" /><small>Железо</small><b data-home-resource="iron">0</b><span>/ 200</span></div>
+            <div class="home-resource"><img data-home-icon="wood" alt="" /><small>Дерево</small><div class="home-resource-amount"><b data-home-resource="wood">120</b><span>/ 200</span></div></div>
+            <div class="home-resource"><img data-home-icon="food" alt="" /><small>Еда</small><div class="home-resource-amount"><b data-home-resource="food">80</b><span>/ 200</span></div></div>
+            <div class="home-resource"><img data-home-icon="stone" alt="" /><small>Камень</small><div class="home-resource-amount"><b data-home-resource="stone">60</b><span>/ 200</span></div></div>
+            <div class="home-resource"><img data-home-icon="iron" alt="" /><small>Железо</small><div class="home-resource-amount"><b data-home-resource="iron">0</b><span>/ 200</span></div></div>
           </div>
           <div class="home-happiness"><img data-home-icon="happy" alt="" /><div><span>Счастье <small>Жителям хорошо</small></span><i><em></em></i></div><b>82 <small>/ 100</small></b></div>
+        </section>
+        <section id="island-panel" class="island-panel" aria-label="Участок острова" hidden>
+          <div class="island-panel-heading">
+            <h2 id="island-title">Участки острова</h2>
+            <button id="island-close" type="button" aria-label="Закрыть карточку участка">×</button>
+          </div>
+          <label id="island-lookup" hidden>Выберите участок <select id="island-select"></select></label>
+          <p id="island-status" role="status" hidden></p>
+          <button id="island-action" class="m3-primary" type="button" hidden></button>
         </section>
         <button id="open-shifts" class="home-shifts" aria-label="Открыть рабочие смены"><img data-home-icon="launcher" alt="" /><span><b>Рабочие смены</b><small>Добывай ресурсы в «3 в ряд»</small></span></button>
         <nav class="home-nav" aria-label="Разделы игры">
@@ -43,15 +52,6 @@
         <div class="eyebrow">⬡ СВОЙ ОСТРОВ</div>
         <h1>Первый берег<span>.</span></h1>
       </header>
-      <div class="time-panel">
-        <button
-          id="time-toggle"
-          aria-pressed="false"
-          title="Сменить день и ночь"
-        >
-          ☀ День</button
-        ><label><input type="checkbox" id="auto-time" /> Автосмена</label>
-      </div>
       <aside aria-label="Исследование острова">
         <div id="selection-hint">
           <h2>Тихая гавань</h2>
