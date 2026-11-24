@@ -1,5 +1,6 @@
 import { renderArt } from "./ui-art";
 import { syncBrowserTheme } from "./theme";
+import type { Axial } from "./hex";
 import { penpotVectors } from "./penpot-vectors";
 import {
   areAdjacent,
@@ -161,6 +162,7 @@ export function mountMatchThree() {
   let screen: Screen = "hub";
   let modal: Modal;
   let selectedTheme: MatchThreeTheme = matchThreeThemes.sawmill;
+  let digTargetCell: Axial | undefined;
   let shift: Shift | undefined;
   let selected: Position | undefined;
   let hint: Position[] = [];
@@ -195,15 +197,20 @@ export function mountMatchThree() {
     document.body.classList.remove("match3-open");
     syncBrowserTheme();
   };
-  const open = () => {
+  const open = (target?: Axial) => {
+    digTargetCell = target;
+    if (target && !activeRun) {
+      selectedTheme = matchThreeThemes.dig;
+      screen = "brief";
+    }
     root.hidden = false;
     document.body.classList.add("match3-open");
     modal = undefined;
     syncBrowserTheme();
     render();
-    if (!preview) void perform(loadState);
+    if (!preview) void perform(() => loadState(target ? "brief" : "hub"));
   };
-  entry.addEventListener("click", open);
+  entry.addEventListener("click", () => open());
 
   function potPosition() {
     return shift?.amphora ?? undefined;
@@ -536,6 +543,9 @@ export function mountMatchThree() {
       warehouse = saved.warehouse;
       if (saved.dig) savedDigDepth = saved.dig.savedDepth;
       publishWarehouse();
+      if (saved.dig?.revealedCell) {
+        window.dispatchEvent(new CustomEvent("match3:cell-revealed", { detail: saved.dig.revealedCell }));
+      }
     }
     const stock = saved.resourceId ? warehouse[saved.resourceId] : undefined;
     modal = settledNow && stock && stock.amount >= stock.limit ? "storageFull" : undefined;
@@ -552,6 +562,7 @@ export function mountMatchThree() {
     clearAnimation();
     publishWarehouse();
     if (activeRun) {
+      digTargetCell = undefined;
       showRun(activeRun);
     } else if (next === "result" && state.lastResult) {
       showResult(state.lastResult, false);
@@ -559,7 +570,7 @@ export function mountMatchThree() {
       const id = selectedTheme.id;
       selectedTheme = themeFor(id, serverShifts.find((item) => item.shiftId === id));
       modal = undefined;
-      screen = next === "brief" ? "brief" : "hub";
+      screen = next === "brief" || (digTargetCell && !root.hidden) ? "brief" : "hub";
     }
   }
 
@@ -599,6 +610,8 @@ export function mountMatchThree() {
         issue = {
           message: error instanceof Match3ApiError && error.code === "no_excavation_site"
             ? "Сейчас нет доступного участка для раскопок."
+            : error instanceof Match3ApiError && error.code === "unfinished_excavation"
+              ? "Сначала закончи раскопки на начатом участке."
             : "Не удалось выполнить действие. Вернись к списку смен и попробуй ещё раз.",
         };
       }
@@ -613,8 +626,10 @@ export function mountMatchThree() {
   function startShift() {
     const id = selectedTheme.id;
     const key = match3RequestKey();
+    const target = id === "dig" ? digTargetCell : undefined;
     return perform(async () => {
-      const run = await match3Api.start(id, key);
+      const run = await match3Api.start(id, key, target);
+      digTargetCell = undefined;
       lastLightningYield = undefined;
       showRun(run);
     });
@@ -769,6 +784,7 @@ export function mountMatchThree() {
       return;
     } else if (action === "close-issue") issue = undefined;
     else if (action === "hub") {
+      digTargetCell = undefined;
       if (preview) screen = "hub";
       else {
         void perform(loadState);
@@ -872,4 +888,5 @@ export function mountMatchThree() {
   publishWarehouse();
   render();
   if (!preview) void perform(loadState);
+  return { openDig: (target: Axial) => open(target) };
 }

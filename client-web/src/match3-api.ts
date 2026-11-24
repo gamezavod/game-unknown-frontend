@@ -1,4 +1,5 @@
 import type { Board, ChipId, Position, ShiftId } from "./match3";
+import type { Axial } from "./hex";
 import { gameRequest as request, withGuestWorld } from "./game-api";
 export { GameApiError as Match3ApiError } from "./game-api";
 
@@ -31,7 +32,7 @@ export interface Match3Result {
   overflow: number;
   goalReached: boolean;
   warehouse: Warehouse;
-  dig: { savedDepth: number } | null;
+  dig: { savedDepth: number; revealedCell: Axial | null } | null;
 }
 
 export interface Match3Run {
@@ -95,8 +96,8 @@ export const match3Api = {
   state() {
     return withGuestWorld(() => request<Match3State>(`${prefix}/state`));
   },
-  start(shiftId: ShiftId, key: string) {
-    return request<Match3Run>(`${prefix}/runs`, { shiftId }, key);
+  start(shiftId: ShiftId, key: string, target?: Axial) {
+    return request<Match3Run>(`${prefix}/runs`, { shiftId, target }, key);
   },
   move(run: Match3Run, from: Position, to: Position, key: string) {
     return request<MoveResponse>(`${runPath(run.runId)}/moves`, { from, to, expectedRevision: run.revision }, key);

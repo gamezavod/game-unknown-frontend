@@ -15,7 +15,7 @@
     <canvas
       id="scene"
       tabindex="0"
-      aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Выбор клетки также доступен в списке."
+      aria-label="Трёхмерная карта острова. Перетаскивайте для перемещения, используйте два пальца для масштаба. Нажмите Enter для списка участков."
     ></canvas>
     <div id="home-ui" aria-label="Главный экран острова">
       <div class="home-frame">
@@ -27,6 +27,15 @@
             <div class="home-resource"><img data-home-icon="iron" alt="" /><small>Железо</small><div class="home-resource-amount"><b data-home-resource="iron">0</b><span>/ 200</span></div></div>
           </div>
           <div class="home-happiness"><img data-home-icon="happy" alt="" /><div><span>Счастье <small>Жителям хорошо</small></span><i><em></em></i></div><b>82 <small>/ 100</small></b></div>
+        </section>
+        <section id="island-panel" class="island-panel" aria-label="Участок острова" hidden>
+          <div class="island-panel-heading">
+            <h2 id="island-title">Участки острова</h2>
+            <button id="island-close" type="button" aria-label="Закрыть карточку участка">×</button>
+          </div>
+          <label id="island-lookup" hidden>Выберите участок <select id="island-select"></select></label>
+          <p id="island-status" role="status" hidden></p>
+          <button id="island-action" class="m3-primary" type="button" hidden></button>
         </section>
         <button id="open-shifts" class="home-shifts" aria-label="Открыть рабочие смены"><img data-home-icon="launcher" alt="" /><span><b>Рабочие смены</b><small>Добывай ресурсы в «3 в ряд»</small></span></button>
         <nav class="home-nav" aria-label="Разделы игры">

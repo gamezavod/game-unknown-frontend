@@ -1,6 +1,6 @@
 import * as T from "three";
 import { axialToWorld } from "./hex";
-import type { Cell } from "./map-data";
+import { isWaterTerrain, type Cell } from "./map-data";
 import { HEX_RADIUS } from "./island";
 import { createNorthernFog, northernFogRegion } from "./northern-fog";
 
@@ -11,10 +11,11 @@ export function createAtmosphere(
   span: number,
   camera: T.OrthographicCamera,
   renderer: T.WebGLRenderer,
+  serverMap = false,
 ) {
   const root = new T.Group();
   const land = cells
-    .filter((c) => c.type !== "water")
+    .filter((c) => !isWaterTerrain(c.type) && c.type !== "fog")
     .map((c) => axialToWorld(c, HEX_RADIUS));
   const seaGeometry = new T.PlaneGeometry(span * 8, span * 8, 160, 160);
   seaGeometry.rotateX(-Math.PI / 2);
@@ -27,7 +28,8 @@ export function createAtmosphere(
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i),
       z = positions.getZ(i);
-    const distance = Math.min(...land.map((p) => Math.hypot(x - p.x, z - p.z)));
+    let distance = Infinity;
+    for (const p of land) distance = Math.min(distance, Math.hypot(x - p.x, z - p.z));
     const blend = Math.exp(-Math.max(0, distance - HEX_RADIUS) * 0.8);
     color.copy(deep).lerp(shallow, blend * 0.9);
     colors.push(color.r, color.g, color.b);
@@ -59,11 +61,14 @@ export function createAtmosphere(
   });
   const waves = new T.LineSegments(wavesGeometry, wavesMaterial);
   root.add(waves);
-  const fog = createNorthernFog(
-    renderer,
-    camera,
-    northernFogRegion(cells, HEX_RADIUS, span),
-  );
+  const region = northernFogRegion(cells, HEX_RADIUS, span);
+  if (serverMap) {
+    // Открытые сервером гексы должны оставаться видимыми и доступными для выбора.
+    const border = Math.min(...cells.map((c) => axialToWorld(c, HEX_RADIUS).z));
+    region.opaqueZ -= region.frontZ - (border - 3);
+    region.frontZ = border - 3;
+  }
+  const fog = createNorthernFog(renderer, camera, region);
   // Лёгкие движущиеся полосы ряби поверх пространственного градиента глубины.
   const waterTime = { value: 0 };
   seaMaterial.onBeforeCompile = (shader) => {
@@ -91,6 +96,13 @@ export function createAtmosphere(
       wavesMaterial.opacity = T.MathUtils.lerp(0.17, 0.09, night);
       fog.update(time, night);
       waterTime.value = time;
+    },
+    dispose() {
+      fog.dispose();
+      seaGeometry.dispose();
+      seaMaterial.dispose();
+      wavesGeometry.dispose();
+      wavesMaterial.dispose();
     },
   };
 }
