@@ -73,7 +73,6 @@ const penpotChipIcons: Partial<Record<ChipId, PenpotMatch3IconName>> = {
   lantern: "lantern",
   pickaxe: "pickaxe",
   gear: "gear",
-  digRock: "rock",
   sprout: "sprout",
   autumn: "autumn",
 };
@@ -673,7 +672,7 @@ export function mountMatchThree() {
     window.addEventListener("match3:preview", (event) => {
       const fixture = (event as CustomEvent<{
         theme: ShiftId; night: boolean; screen: Screen; modal?: Modal;
-        board?: Board; moves?: number; collected?: number; depth?: number;
+        board?: (ChipId | "digRock")[][]; moves?: number; collected?: number; depth?: number;
         charges?: number; lightningEnabled?: boolean; armed?: boolean; selected?: Position; hint?: Position[]; lightningYield?: number;
         clearing?: Position[]; stock?: number; won?: boolean;
       }>).detail;
@@ -685,7 +684,7 @@ export function mountMatchThree() {
       screen = fixture.screen;
       modal = fixture.modal;
       shift = {
-        theme: selectedTheme, board: fixture.board ?? createBoard(selectedTheme.chips),
+        theme: selectedTheme, board: fixture.board?.map((row) => row.map((chip) => chip === "digRock" ? "rock" : chip)) ?? createBoard(selectedTheme.chips),
         moves: fixture.moves ?? selectedTheme.moves, collected: fixture.collected ?? 0,
         digDepth: fixture.depth ?? 0, lightningCharges: fixture.charges ?? 0,
         lightningEnabled: fixture.lightningEnabled ?? (fixture.charges ?? 0) > 0,

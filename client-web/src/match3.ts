@@ -22,7 +22,6 @@ export type ChipId =
   | "lantern"
   | "pickaxe"
   | "gear"
-  | "digRock"
   | "sprout"
   | "autumn";
 
@@ -85,7 +84,7 @@ export const matchThreeThemes: Record<ShiftId, MatchThreeTheme> = {
   },
   dig: {
     id: "dig", title: "Раскопки", subtitle: "Ищем древнюю находку", resourceName: "глубины", resourcePlural: "ходов расчистки", resourceAccusative: "глубину",
-    mainChip: "digRock", mainChipName: "Амфора", chips: ["digRock", "brick", "sprout", "autumn", "rock"], goal: 1, bonus: 0, moves: 20,
+    mainChip: "rock", mainChipName: "Амфора", chips: ["rock", "brick", "sprout", "autumn"], goal: 1, bonus: 0, moves: 20,
     workers: "Провизия уже внесена. Глубина сохранится, если закончить смену.", contextEmoji: "🧭", contextText: "Провизия уже внесена",
     fieldNote: "Расчисти путь: амфора должна дойти до низа.", icon: "pot", resultHelpTitle: "Амфора найдена", resultHelpText: "Находка останется в коллекции острова.", kind: "dig",
   },
@@ -98,7 +97,7 @@ export const chipPresentation: Record<ChipId, { emoji: string; name: string; ton
   wheat: { emoji: "🌾", name: "Колос", tone: "cream" }, carrot: { emoji: "🥕", name: "Морковь", tone: "sand" }, apple: { emoji: "🍎", name: "Яблоко", tone: "blue" }, sunflower: { emoji: "🌻", name: "Подсолнух", tone: "green" }, pumpkin: { emoji: "🎃", name: "Тыква", tone: "mint" },
   rock: { emoji: "🪨", name: "Камень", tone: "blue" }, sand: { emoji: "🏜️", name: "Песок", tone: "cream" }, brick: { emoji: "🧱", name: "Глина", tone: "sand" }, crystal: { emoji: "💎", name: "Кристалл", tone: "mint" }, clay: { emoji: "🏺", name: "Галька", tone: "green" },
   ore: { emoji: "🪨", name: "Руда", tone: "blue" }, gem: { emoji: "💎", name: "Самоцвет", tone: "mint" }, lantern: { emoji: "🔦", name: "Фонарь", tone: "cream" }, pickaxe: { emoji: "⛏️", name: "Кирка", tone: "sand" }, gear: { emoji: "⚙️", name: "Вагонетка", tone: "green" },
-  digRock: { emoji: "🪨", name: "Камень", tone: "blue" }, sprout: { emoji: "🌱", name: "Росток", tone: "green" }, autumn: { emoji: "🍂", name: "Лист", tone: "cream" },
+  sprout: { emoji: "🌱", name: "Росток", tone: "green" }, autumn: { emoji: "🍂", name: "Лист", tone: "cream" },
 };
 
 export type Random = () => number;
