@@ -4,12 +4,12 @@
 body.night { --ink: #f0f7f2; --muted: #acbdc4; --card: #173443; --subtle: #213f4c; --accent: #abf1cc; }
 .home-frame { height: 100dvh; min-height: 360px; padding-bottom: max(0px, env(safe-area-inset-bottom)); }
 .home-resources { height: 87px; min-height: 87px; padding: 8px 12px; border: 0; border-radius: 27px; background: #f8fcf7e8; }
-.home-resource { grid-template-columns: max-content 1fr; grid-template-rows: 30px 13px 20px; gap: 4px; padding: 0; }
+.home-resource { grid-template-columns: minmax(0, 1fr); grid-template-rows: 30px 13px 20px; gap: 4px; padding: 0; }
 .home-resource + .home-resource { border-left: 1px solid transparent; }
 .home-resource + .home-resource::before { top: 15.5px; bottom: 15.5px; left: -1px; background: #60776f21; }
 .home-resource small { font-size: 10.5px; line-height: 13px; color: var(--muted); }
-.home-resource b { margin-left: 7px; line-height: 20px; color: var(--ink); }
-.home-resource > span:not(.home-art) { align-self: center; padding: 0; line-height: 12px; text-align: left; color: var(--muted); }
+.home-resource b { line-height: 20px; color: var(--ink); }
+.home-resource-amount > span { line-height: 12px; color: var(--muted); }
 .home-happiness { position: relative; height: 55px; padding: 5px 18px 12px 12px; border: 0; border-radius: 20px; background: #f8fcf7e8; }
 .home-happiness > .home-art { flex: 0 0 32px; align-self: start; margin-top: 7px; }
 .home-happiness > div { min-width: 0; }
@@ -28,9 +28,22 @@ body.night { --ink: #f0f7f2; --muted: #acbdc4; --card: #173443; --subtle: #213f4
 .night #home-ui { background: transparent; }
 .night .home-resources, .night .home-happiness, .night .home-nav { background: #102b3ceb; }
 .night .home-nav button[aria-current="page"] { background: #284b52; }
-#match3 { color: var(--ink); background: #f1f5ef; }
+#match3 {
+  color: var(--ink);
+  background: #f1f5ef;
+  /* Прокрутка не заходит под системные зоны Safari: там остаётся фон страницы. */
+  top: env(safe-area-inset-top);
+  bottom: env(safe-area-inset-bottom);
+  height: auto;
+  min-height: 0;
+}
 .night #match3 { background: #0d202b; }
-.m3-screen { color: var(--ink); padding-top: calc(env(safe-area-inset-top) + 4px); padding-bottom: env(safe-area-inset-bottom); }
+.m3-screen {
+  color: var(--ink);
+  min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding-top: 4px;
+  padding-bottom: 12px;
+}
 .m3-header { flex-shrink: 0; }
 .m3-header h1 { color: var(--ink); line-height: 23px; }
 .m3-header p { margin-top: 2px !important; line-height: 15px; color: var(--muted); }
