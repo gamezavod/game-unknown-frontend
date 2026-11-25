@@ -3,7 +3,7 @@
   color: #314332;
   color-scheme: light;
   /* iOS 26 paints the status-bar safe area from the document background. */
-  background: #bdd6d3;
+  background: #b8d2ce;
   font-synthesis: none;
 }
 * {
@@ -683,7 +683,6 @@ footer b {
 .m3-goal-card,
 .m3-move-card,
 .m3-stock-card,
-.m3-reward-note,
 .m3-result-card,
 .m3-stock { border-radius: 22px; background: #fff; }
 .m3-brief-hero { min-height: 92px; display: flex; align-items: center; gap: 16px; padding: 16px; }
@@ -721,43 +720,7 @@ footer b {
 .m3-secondary { margin-top: 9px; background: #e7efe6; color: #183d33; }
 .m3-bottom-action { margin-top: 7px; }
 .m3-brief-main .m3-bottom-action { width: auto; margin-top: auto; border-radius: 18px; background: #14795c; }
-.m3-game { padding: max(4px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom)); }
-.m3-game .m3-header { padding: 0; margin: 0 0 10px; }
-.m3-game-stats { display: grid; grid-template-columns: minmax(0, 244fr) minmax(0, 118fr); gap: 8px; margin: 0 8px; }
-.m3-progress,
-.m3-moves { min-height: 72px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 18px; background: #fff; }
-.m3-resource-art { width: 36px; height: 40px; }
-.m3-resource-art.m3-emoji { font-size: 34px; }
-.m3-progress > div { flex: 1; }
-.m3-progress small,
-.m3-moves small { display: block; }
-.m3-progress b { display: block; margin: 0; font: 600 14px/1.2 "Inter Tight Variable", Inter, sans-serif; }
-.m3-progress i { display: block; height: 6px; margin: 4px 0 3px; overflow: hidden; border-radius: 10px; background: #e4ede4; }
-.m3-progress em { display: block; height: 100%; background: #8eae78; transition: width 260ms ease; }
-.m3-moves { display: block; padding-top: 7px; text-align: center; background: #d9eee2; }
-.m3-moves small { color: #14795c; font-size: 11px; }
-.m3-moves b { display: block; margin-top: 1px; color: #183d33; font: 700 30px/1 "Inter Tight Variable", Inter, sans-serif; }
-.m3-bonus-line { height: 22px; display: flex; align-items: center; gap: 6px; margin: 8px 8px 10px; color: #60776f; font: 500 12px/22px "Inter Tight Variable", Inter, sans-serif; }
-.m3-line-art { width: 20px; height: 22px; }
-.m3-line-emoji { width: 20px; height: 22px; font-size: 16px; }
-.m3-board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px; width: 100%; aspect-ratio: 1; overflow: hidden; margin: 0; padding: 8px; border: 0; border-radius: 24px; background: #dcc5a4; touch-action: none; }
-.m3-chip { aspect-ratio: 1; min-width: 0; border: 0; border-radius: 10px; background: #f1e7d8; transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease; }
-.m3-chip { overflow: hidden; }
-/* Исходные SVG фишек масштабируются без увеличения растрового экспорта. */
-.m3-chip-art { width: 100%; height: 100%; padding: 2px; transform: none; }
-.m3-chip > .m3-emoji { width: 100%; height: 100%; font-size: 29px; transform: scale(1.04); }
-.m3-chip--sand { background: #f1e7d8; }
-.m3-chip--green { background: #e7f0d8; }
-.m3-chip--mint { background: #e8efec; }
-.m3-chip--cream { background: #fff1d6; }
-.m3-chip--blue { background: #e8edf8; }
-.m3-chip--tree { background: #e7f0d8; }
-.m3-chip--leaf { background: #e8efec; }
-.m3-chip--mushroom { background: #fff1d6; }
-.m3-chip--acorn { background: #e8edf8; }
-.m3-chip--pot { background: #fff1d6; box-shadow: inset 0 0 0 2px #c9804b; }
-.m3-chip.is-selected { background: #d5edc8; box-shadow: inset 0 0 0 3px #518c5d; transform: scale(0.92); }
-.m3-chip.is-hinted { animation: m3-hint 750ms ease-in-out infinite alternate; box-shadow: inset 0 0 0 3px #e5ae43; }
+.m3-chip.is-hinted { animation: m3-hint 750ms ease-in-out infinite alternate; }
 .m3-chip.is-invalid { animation: m3-invalid 165ms ease-in-out 1; }
 .m3-chip.is-swapping,
 .m3-chip.is-returning { position: relative; z-index: 2; will-change: transform; }
@@ -770,18 +733,6 @@ footer b {
 @keyframes m3-swap { to { transform: translate(var(--swap-x), var(--swap-y)); } }
 @keyframes m3-clear { 35% { transform: scale(1.1); filter: brightness(1.18); } to { transform: scale(.12) rotate(10deg); opacity: 0; } }
 @keyframes m3-drop { from { opacity: 0; transform: translateY(-34px) scale(.86); } 70% { opacity: 1; transform: translateY(3px) scale(1.025); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.m3-field-note { min-height: 32px; margin: 8px 8px 10px; color: #60776f; font: 500 12px/1.2 "Inter Tight Variable", Inter, sans-serif; }
-.m3-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 8px; }
-.m3-actions button { min-height: 58px; display: grid; align-content: center; justify-items: center; border: 0; border-radius: 18px; background: #fff; color: #60776f; }
-.m3-action-art { width: 32px; height: 24px; }
-.m3-actions span { display: block; margin-top: 1px; font: 500 12px/1.2 "Inter Tight Variable", Inter, sans-serif; }
-.m3-reward-note { min-height: 62px; display: flex; align-items: center; gap: 10px; margin: 12px 8px 0; padding: 11px 10px; color: #183d33; }
-.m3-reward-note b { font: 600 14px/1.2 "Inter Tight Variable", Inter, sans-serif; }
-.m3-reward-note small { margin-top: 3px; color: #60776f; font: 500 12px/1.2 "Inter Tight Variable", Inter, sans-serif; }
-.m3-reward-art { width: 40px; height: 40px; }
-.m3-reward-emoji { width: 40px; height: 40px; font-size: 30px; }
-.m3-reward-note b,
-.m3-reward-note small { display: block; }
 .m3-modal-backdrop { position: fixed; z-index: 2; inset: 0; display: grid; align-items: end; padding: 18px; background: #163e3699; }
 .m3-modal { width: min(100%, 370px); margin: 0 auto; padding: 23px 20px max(20px, env(safe-area-inset-bottom)); border-radius: 23px; background: #f8faf3; text-align: left; box-shadow: 0 -8px 30px #112b2422; }
 .m3-modal h2 { margin-top: 0; color: #183d33; font: 700 19px/1.2 "Inter Tight Variable", Inter, sans-serif; }
@@ -855,9 +806,7 @@ footer b {
 .m3-screen--night .m3-header p,
 .m3-screen--night small,
 .m3-screen--night .m3-lead,
-.m3-screen--night .m3-note,
-.m3-screen--night .m3-field-note,
-.m3-screen--night .m3-bonus-line { color: #acbdc4; }
+.m3-screen--night .m3-note { color: #acbdc4; }
 .m3-screen--night .m3-icon-button,
 .m3-screen--night .m3-shift-mark { background: #213f4c; color: #f0f7f2; }
 .m3-screen--night .m3-hub-intro,
@@ -866,14 +815,11 @@ footer b {
 .m3-screen--night .m3-goal-card,
 .m3-screen--night .m3-move-card,
 .m3-screen--night .m3-stock-card,
-.m3-screen--night .m3-reward-note,
 .m3-screen--night .m3-result-card,
 .m3-screen--night .m3-stock,
 .m3-screen--night .m3-result-help,
 .m3-screen--night .m3-dig-discovery,
-.m3-screen--night .m3-dig-info,
-.m3-screen--night .m3-actions button,
-.m3-screen--night .m3-progress { background: #173443; color: #f0f7f2; }
+.m3-screen--night .m3-dig-info { background: #173443; color: #f0f7f2; }
 .m3-screen--night .m3-work-card b,
 .m3-screen--night .m3-brief-hero b,
 .m3-screen--night .m3-goal-card b,
@@ -888,14 +834,11 @@ footer b {
 .m3-screen--night .m3-goal-card p,
 .m3-screen--night .m3-move-card p,
 .m3-screen--night .m3-stock-card small,
-.m3-screen--night .m3-reward-note small,
 .m3-screen--night .m3-result-card small,
 .m3-screen--night .m3-stock small,
 .m3-screen--night .m3-result-help p,
 .m3-screen--night .m3-dig-discovery p,
-.m3-screen--night .m3-dig-info p,
-.m3-screen--night .m3-actions button { color: #acbdc4; }
-.m3-screen--night .m3-moves { background: #284b52; }
+.m3-screen--night .m3-dig-info p { color: #acbdc4; }
 .m3-screen--night .m3-island-button,
 .m3-screen--night .m3-result-again,
 .m3-screen--night .m3-secondary { background: #173443; color: #f0f7f2; }

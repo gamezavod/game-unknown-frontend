@@ -19,6 +19,8 @@ import type { Warehouse } from "./match3-api";
 import { mountSystemTheme } from "./theme";
 import { penpotHomeIcons } from "./penpot-home-icons";
 import "@fontsource-variable/inter-tight";
+import "@fontsource-variable/onest";
+import "@fontsource/pt-serif/700.css";
 import "./style.css";
 import "./penpot-layout.css";
 

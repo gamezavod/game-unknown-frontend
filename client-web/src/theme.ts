@@ -4,7 +4,7 @@ export function syncBrowserTheme() {
   const inShift = document.body.classList.contains("match3-open");
   const color = inShift
     ? night ? "#0d202b" : "#f1f5ef"
-    : night ? "#102a40" : "#bdd6d3";
+    : night ? "#102a40" : "#b8d2ce";
   const scheme = night ? "dark" : "light";
   document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
   document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')?.setAttribute("content", scheme);
