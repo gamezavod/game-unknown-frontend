@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#124b5c" />
+    <meta name="theme-color" content="#b8d2ce" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/island.svg" type="image/svg+xml" />
     <title>Свой остров — Первый берег</title>
@@ -19,30 +19,42 @@
     ></canvas>
     <div id="home-ui" aria-label="Главный экран острова">
       <div class="home-frame">
-        <section class="home-hud" aria-label="Ресурсы острова">
-          <div class="home-resources">
-            <div class="home-resource"><img data-home-icon="wood" alt="" /><small>Дерево</small><div class="home-resource-amount"><b data-home-resource="wood">120</b><span>/ 200</span></div></div>
-            <div class="home-resource"><img data-home-icon="food" alt="" /><small>Еда</small><div class="home-resource-amount"><b data-home-resource="food">80</b><span>/ 200</span></div></div>
-            <div class="home-resource"><img data-home-icon="stone" alt="" /><small>Камень</small><div class="home-resource-amount"><b data-home-resource="stone">60</b><span>/ 200</span></div></div>
-            <div class="home-resource"><img data-home-icon="iron" alt="" /><small>Железо</small><div class="home-resource-amount"><b data-home-resource="iron">0</b><span>/ 200</span></div></div>
+        <div class="home-game" id="home-game">
+          <section class="home-hud" aria-label="Ресурсы острова">
+            <div class="home-resources">
+              <div class="home-resource"><img data-home-icon="wood" alt="" /><small>Дерево</small><div class="home-resource-amount"><b data-home-resource="wood">120</b><span>/ 200</span></div></div>
+              <div class="home-resource"><img data-home-icon="food" alt="" /><small>Еда</small><div class="home-resource-amount"><b data-home-resource="food">80</b><span>/ 200</span></div></div>
+              <div class="home-resource"><img data-home-icon="stone" alt="" /><small>Камень</small><div class="home-resource-amount"><b data-home-resource="stone">60</b><span>/ 200</span></div></div>
+              <div class="home-resource"><img data-home-icon="iron" alt="" /><small>Железо</small><div class="home-resource-amount"><b data-home-resource="iron">0</b><span>/ 200</span></div></div>
+            </div>
+            <div class="home-happiness"><img data-home-icon="happy" alt="" /><div><span>Счастье <small>Жителям хорошо</small></span><i><em></em></i></div><b>82 <small>/ 100</small></b></div>
+          </section>
+          <section id="island-panel" class="island-panel" aria-label="Участок острова" hidden>
+            <div class="island-panel-heading">
+              <h2 id="island-title">Участки острова</h2>
+              <button id="island-close" type="button" aria-label="Закрыть карточку участка">×</button>
+            </div>
+            <label id="island-lookup" hidden>Выберите участок <select id="island-select"></select></label>
+            <p id="island-status" role="status" hidden></p>
+            <button id="island-action" class="m3-primary" type="button" hidden></button>
+          </section>
+          <button id="open-shifts" class="home-shifts" aria-label="Открыть рабочие смены"><img data-home-icon="launcher" alt="" /><span><b>Рабочие смены</b><small>Добывай ресурсы в «3 в ряд»</small></span></button>
+        </div>
+        <main class="home-section" id="home-section" aria-labelledby="home-section-title" hidden>
+          <h1 id="home-section-title" tabindex="-1"></h1>
+          <div class="home-section-content">
+            <div class="home-section-card">
+              <span class="home-section-icon" aria-hidden="true"></span>
+              <h2>Раздел в разработке</h2>
+              <p class="home-section-description"></p>
+            </div>
           </div>
-          <div class="home-happiness"><img data-home-icon="happy" alt="" /><div><span>Счастье <small>Жителям хорошо</small></span><i><em></em></i></div><b>82 <small>/ 100</small></b></div>
-        </section>
-        <section id="island-panel" class="island-panel" aria-label="Участок острова" hidden>
-          <div class="island-panel-heading">
-            <h2 id="island-title">Участки острова</h2>
-            <button id="island-close" type="button" aria-label="Закрыть карточку участка">×</button>
-          </div>
-          <label id="island-lookup" hidden>Выберите участок <select id="island-select"></select></label>
-          <p id="island-status" role="status" hidden></p>
-          <button id="island-action" class="m3-primary" type="button" hidden></button>
-        </section>
-        <button id="open-shifts" class="home-shifts" aria-label="Открыть рабочие смены"><img data-home-icon="launcher" alt="" /><span><b>Рабочие смены</b><small>Добывай ресурсы в «3 в ряд»</small></span></button>
+        </main>
         <nav class="home-nav" aria-label="Разделы игры">
-          <button type="button" aria-current="page"><img data-home-icon="game" alt="" />Игра</button>
-          <button type="button"><img data-home-icon="settlement" alt="" />Поселение</button>
-          <button type="button"><img data-home-icon="technology" alt="" />Технологии</button>
-          <button type="button"><img data-home-icon="stats" alt="" />Статистика</button>
+          <button type="button" data-home-tab="game" aria-current="page"><img data-home-icon="game" alt="" />Игра</button>
+          <button type="button" data-home-tab="settlement"><img data-home-icon="settlement" alt="" />Поселение</button>
+          <button type="button" data-home-tab="technology"><img data-home-icon="technology" alt="" />Технологии</button>
+          <button type="button" data-home-tab="stats"><img data-home-icon="stats" alt="" />Статистика</button>
         </nav>
       </div>
     </div>

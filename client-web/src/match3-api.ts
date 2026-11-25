@@ -18,6 +18,11 @@ export interface ShiftView {
   shiftId: ShiftId;
   goal: Goal;
   moves: number;
+  moveBreakdown?: {
+    base: number;
+    forest: number;
+    happiness: number;
+  };
   charges: number;
   assignedWorkers: number;
 }

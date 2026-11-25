@@ -17,8 +17,11 @@ import { TapGesture } from "./gestures";
 import { mountMatchThree } from "./match3-ui";
 import type { Warehouse } from "./match3-api";
 import { mountSystemTheme } from "./theme";
+import { mountHomeNavigation } from "./home-navigation";
 import { penpotHomeIcons } from "./penpot-home-icons";
 import "@fontsource-variable/inter-tight";
+import "@fontsource-variable/onest";
+import "@fontsource/pt-serif/700.css";
 import "./style.css";
 import "./penpot-layout.css";
 
@@ -44,6 +47,7 @@ function mountHomeHud() {
 async function start() {
   mountSystemTheme();
   mountHomeHud();
+  mountHomeNavigation();
   const shifts = mountMatchThree();
   const preview = import.meta.env.DEV && new URLSearchParams(location.search).has("match3-preview");
   let snapshot: IslandSnapshot | undefined;
@@ -400,6 +404,7 @@ async function start() {
     | undefined;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
+    if (document.body.classList.contains("home-section-open")) return;
     const night = document.body.classList.contains("night");
     nightBlend = T.MathUtils.damp(nightBlend, night ? 1 : 0, 2, dt);
     (scene.background as T.Color)
