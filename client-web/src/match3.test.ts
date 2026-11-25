@@ -8,7 +8,6 @@ import {
   findMatches,
   findPossibleMoves,
   matchThreeThemes,
-  nextDigDepth,
   positionFromSwipe,
   resultReward,
   sawmillTheme,
@@ -98,11 +97,67 @@ test("награда добавляет бонус только после це�
   expect(resultReward(30)).toEqual({ collected: 30, bonus: 10, total: 40, reachedGoal: true });
 });
 
-test("в раскопках амфора двигается только после очистки пути под неи", () => {
-  expect(nextDigDepth(0, [{ row: 2, column: 3 }])).toBe(1);
-  expect(nextDigDepth(0, [{ row: 2, column: 2 }, { row: 0, column: 3 }])).toBe(0);
-  expect(nextDigDepth(5, [{ row: 7, column: 3 }])).toBe(6);
-  expect(nextDigDepth(6, [{ row: 7, column: 3 }])).toBe(6);
+test("амфора падает на число очищенных фишек ниже в своём столбце", () => {
+  const dig = matchThreeThemes.dig;
+  const board: Board = Array.from({ length: boardSize }, (_, row) =>
+    Array.from({ length: boardSize }, (_, column) => dig.chips[(row * 2 + column) % dig.chips.length]),
+  );
+  board[4][3] = board[5][3] = "rock";
+  const amphora = { row: 1, column: 3 };
+  let seed = 17;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const result = attemptMove(board, { row: 6, column: 4 }, { row: 6, column: 3 }, dig, random, amphora);
+  expect(result.accepted).toBe(true);
+  expect(result.steps[0].cleared).toEqual([4, 5, 6].map((row) => ({ row, column: 3 })));
+  expect(result.steps[0].amphoraAfter).toEqual({ row: 4, column: 3 });
+  expect(result.steps[0].after[4][3]).toBe(board[1][3]);
+  expect(findPossibleMoves(board, amphora).flat()).not.toContainEqual(amphora);
+  expect(attemptMove(board, amphora, { row: 1, column: 4 }, dig, random, amphora).accepted).toBe(false);
+});
+
+test.each(["sawmill", "farm", "quarry", "mine"] as const)(
+  "%s пополняет редкий ресурс в случайных местах без готовой тройки",
+  (id) => {
+    const { chips, mainChip } = matchThreeThemes[id];
+    const others = chips.filter((chip) => chip !== mainChip);
+    const board: Board = Array.from({ length: boardSize }, (_, row) =>
+      Array.from({ length: boardSize }, (_, column) => others[(row + column) % others.length]),
+    );
+    const cleared = board[0].map((_, column) => ({ row: boardSize - 1, column }));
+    const refill = (selection: number) => {
+      let draw = 0;
+      return dropAndRefill(board, cleared, chips, () =>
+        draw < boardSize ? (chips.indexOf(others[draw++ % others.length]) + 0.5) / chips.length : selection,
+      mainChip);
+    };
+    const first = refill(0);
+    const second = refill(0.99);
+    expect(first[0].filter((chip) => chip === mainChip)).toHaveLength(2);
+    expect(second[0].filter((chip) => chip === mainChip)).toHaveLength(2);
+    expect(first[0]).not.toEqual(second[0]);
+    expect(findMatches(first)).toEqual([]);
+    expect(findMatches(second)).toEqual([]);
+  },
+);
+
+test("добавленная фишка не достраивает имеющуюся пару до тройки", () => {
+  const { chips, mainChip } = sawmillTheme;
+  const other = chips.filter((chip) => chip !== mainChip);
+  const board: Board = Array.from({ length: boardSize }, (_, row) =>
+    Array.from({ length: boardSize }, (_, column) => other[(row + column) % other.length]),
+  );
+  board[0][0] = board[0][1] = mainChip;
+  const cleared = board[0].slice(2).map((_, index) => ({ row: 0, column: index + 2 }));
+  let column = 2;
+  const after = dropAndRefill(board, cleared, chips, () =>
+    column < boardSize ? (chips.indexOf(other[column++ % other.length]) + 0.5) / chips.length : 0,
+  mainChip);
+  expect(after[0][2]).not.toBe(mainChip);
+  expect(after.flat().filter((chip) => chip === mainChip)).toHaveLength(4);
+  expect(findMatches(after)).toEqual([]);
 });
 
 test("для всех пяти смен создается стабильное поле 8 на 8", () => {

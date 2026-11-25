@@ -1,16 +1,23 @@
 import { renderArt } from "./ui-art";
 import { syncBrowserTheme } from "./theme";
-import type { Axial } from "./hex";
 import { penpotVectors } from "./penpot-vectors";
-import { match3Tile, renderMatch3Tile } from "./penpot-match3-tiles";
+import { match3Tile, renderMatch3Chip, renderMatch3Tile } from "./penpot-match3-tiles";
 import { movesLabel, shiftMovesDescription, workersLabel } from "./match3-copy";
 import {
+  amphoraAtDepth,
   areAdjacent,
+  attemptMove,
+  boardSize,
   createBoard,
+  findPossibleMoves,
   matchThreeThemes,
   positionFromSwipe,
   resultReward,
+  samePosition,
+  strikeRow,
   type Board,
+  type CascadeResult,
+  type CascadeStep,
   type ChipId,
   type MatchThreeTheme,
   type Position,
@@ -19,20 +26,15 @@ import {
 import {
   match3Api,
   Match3ApiError,
-  match3RequestKey,
+  newMatch3RunId,
+  type ClientResult,
+  type Goal,
   type Match3Result,
-  type Match3Run,
   type Match3State,
-  type Match3Step,
   type ShiftView,
   type Warehouse,
 } from "./match3-api";
 import { match3Icons, type Match3IconName } from "./penpot-emoji";
-import {
-  penpotMatch3Icons,
-  type PenpotMatch3IconName,
-} from "./penpot-match3-icons";
-import { penpotHomeIcons } from "./penpot-home-icons";
 
 type Screen = "hub" | "brief" | "game" | "result";
 type Modal = "pause" | "rules" | "storageFull" | "noCharges" | "noEnergy" | "noWorkers" | "hint" | undefined;
@@ -53,6 +55,16 @@ interface Shift {
   lightningArmed: boolean;
 }
 
+interface LocalRun extends ClientResult {
+  board: Board;
+  goal: Goal;
+  movesTotal: number;
+  lightningEnabled: boolean;
+  pending?: boolean;
+  paused?: boolean;
+  pendingPause?: boolean;
+}
+
 interface ResultState {
   reward: Pick<Match3Result, "collected" | "bonus" | "credited" | "overflow"> & { reachedGoal: boolean };
   theme: MatchThreeTheme;
@@ -68,61 +80,18 @@ const initialWarehouse: Warehouse = {
   iron: { amount: 0, limit: 200 },
 };
 
-const exportedChipIcons: Partial<Record<ChipId | "pot", Match3IconName>> = {
-  log: "log",
-  tree: "tree",
-  leaf: "leaf",
-  acorn: "acorn",
-  mushroom: "mushroom",
-  pot: "pot",
-};
-
-const penpotChipIcons: Partial<Record<ChipId, PenpotMatch3IconName>> = {
-  wheat: "wheat",
-  carrot: "carrot",
-  apple: "apple",
-  sunflower: "sunflower",
-  pumpkin: "pumpkin",
-  rock: "rock",
-  sand: "sand",
-  brick: "brick",
-  crystal: "crystal",
-  clay: "clay",
-  ore: "rock",
-  gem: "gem",
-  lantern: "lantern",
-  pickaxe: "pickaxe",
-  gear: "gear",
-  sprout: "sprout",
-  autumn: "autumn",
-};
-
 function art(name: Match3IconName, className = "") {
   return renderArt(match3Icons[name], className);
 }
 
-function penpotArt(name: PenpotMatch3IconName, className = "") {
-  return renderArt(penpotMatch3Icons[name], className);
-}
-
-function homeArt(name: keyof typeof penpotHomeIcons, className = "") {
-  return renderArt(penpotHomeIcons[name], className);
-}
-
-function controlIcon(name: "back" | "pause" | "next") {
+function controlIcon(name: "back" | "next") {
   return renderArt(penpotVectors[name], "m3-control-art");
 }
 
-function chipArt(chip: ChipId, className = "") {
-  const exported = exportedChipIcons[chip];
-  if (exported) return art(exported, className);
-  const penpotIcon = penpotChipIcons[chip];
-  if (penpotIcon) return penpotArt(penpotIcon, className);
-  return "";
-}
-
-function themeArt(theme: MatchThreeTheme, className = "") {
-  return theme.icon === "pot" ? art("pot", className) : chipArt(theme.icon, className);
+function stockCard(theme: MatchThreeTheme, label: string, amount: number, limit: number) {
+  const icon = renderMatch3Chip(theme.id, theme.kind === "dig" ? "pot" : theme.mainChip, "m3-stock-art");
+  const percent = limit > 0 ? Math.min(100, (amount / limit) * 100) : 0;
+  return `<section class="m3-stock-card">${icon}<div class="m3-stock-details"><div><small>${label}</small><b>${amount} / ${limit}</b></div><i><em style="width:${percent}%"></em></i></div></section>`;
 }
 
 const shiftControls = {
@@ -133,10 +102,6 @@ const shiftControls = {
 
 function shiftControl(name: keyof typeof shiftControls) {
   return `<svg class="m3-shift-control" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shiftControls[name]}"/></svg>`;
-}
-
-function samePosition(a: Position | undefined, b: Position) {
-  return a?.row === b.row && a.column === b.column;
 }
 
 function positionKey(position: Position) {
@@ -154,7 +119,6 @@ export function mountMatchThree() {
   let screen: Screen = "hub";
   let modal: Modal;
   let selectedTheme: MatchThreeTheme = matchThreeThemes.sawmill;
-  let digTargetCell: Axial | undefined;
   let shift: Shift | undefined;
   let selected: Position | undefined;
   let hint: Position[] = [];
@@ -166,8 +130,11 @@ export function mountMatchThree() {
   let busy = false;
   let lastLightningYield: number | undefined;
   let warehouse = initialWarehouse;
+  let serverSavedAt = 0;
   let serverShifts: Match3State["shifts"] = [];
-  let activeRun: Match3Run | null = null;
+  let activeRun: LocalRun | undefined;
+  let storageKey: string | undefined;
+  let excavationSiteId: string | undefined;
   let issue: { message: string; retry?: () => Promise<void> } | undefined;
   /** Раскопки сохраняют прогресс, если в смене закончились ходы. */
   let savedDigDepth = 0;
@@ -189,20 +156,15 @@ export function mountMatchThree() {
     document.body.classList.remove("match3-open");
     syncBrowserTheme();
   };
-  const open = (target?: Axial) => {
-    digTargetCell = target;
-    if (target && !activeRun) {
-      selectedTheme = matchThreeThemes.dig;
-      screen = "brief";
-    }
+  const open = () => {
     root.hidden = false;
     document.body.classList.add("match3-open");
     modal = undefined;
     syncBrowserTheme();
     render();
-    if (!preview) void perform(() => loadState(target ? "brief" : "hub"));
+    if (!preview) void perform(loadState);
   };
-  entry.addEventListener("click", () => open());
+  entry.addEventListener("click", open);
 
   function potPosition() {
     return shift?.amphora ?? undefined;
@@ -210,11 +172,6 @@ export function mountMatchThree() {
 
   function stockFor(id: ShiftId) {
     return id === "dig" ? { amount: 0, limit: 0 } : warehouse[resources[id]];
-  }
-
-  function stockPercent(id: ShiftId) {
-    const { amount, limit } = stockFor(id);
-    return limit ? Math.min(100, (amount / limit) * 100) : 0;
   }
 
   function themeFor(id: ShiftId, rules?: Pick<ShiftView, "goal" | "moves">): MatchThreeTheme {
@@ -327,7 +284,11 @@ export function mountMatchThree() {
       return `Молния собрала ${lastLightningYield} ${lastLightningYield === 1 ? "бревно" : lastLightningYield >= 2 && lastLightningYield <= 4 ? "бревна" : "брёвен"}. Ход не потрачен.`;
     if (shift.lightningArmed) return "Выбери ряд: молния соберёт все его фишки.";
     if (shift.lightningCharges > 0) return "Энергии хватает: молния очистит выбранный ряд.";
-    if (shift.theme.id === "sawmill" && shift.moves === 1 && !selected)
+    if (shift.theme.kind === "resource" && shift.collected >= shift.theme.goal) return "Цель выполнена! Открываем бонусный ящик.";
+    if (clearing.length) return "Совпадение! Фишки исчезают.";
+    if (boardPhase === "drop") return "Новые фишки заполняют поле.";
+    if (selected) return "Выбери соседнюю фишку для обмена.";
+    if (shift.theme.id === "sawmill" && shift.moves === 1)
       return `Последний ход: собери ещё ${Math.max(0, shift.theme.goal - shift.collected)} бревна для бонуса.`;
     return shift.theme.kind === "dig" ? shift.theme.fieldNote : "";
   }
@@ -378,31 +339,36 @@ export function mountMatchThree() {
     if (!modal) return "";
     const theme = screen === "brief" ? selectedTheme : shift?.theme ?? selectedTheme;
     const details = {
-      noEnergy: { icon: "energy", title: "Нужно больше энергии", body: "Молния доступна при достаточном энергоснабжении острова. Пока можно собирать обычные ряды.", action: "Понятно" },
-      noCharges: { icon: "energy", title: "Молния уже использована", body: "В этой смене заряд закончился. Продолжай собирать ряды. Новый заряд будет в следующей смене.", action: "Понятно" },
+      noEnergy: { icon: "lightning", title: "Нужно больше энергии", body: "Молния доступна при достаточном энергоснабжении острова. Пока можно собирать обычные ряды.", action: "Понятно" },
+      noCharges: { icon: "lightning", title: "Молния уже использована", body: "В этой смене заряд закончился. Продолжай собирать ряды. Новый заряд будет в следующей смене.", action: "Понятно" },
       storageFull: { icon: "box", title: `Склад ${theme.resourceName} заполнен`, body: "Потрать накопленное или построй ещё склад. Смена станет доступна, когда освободится место.", action: "К складу" },
       noWorkers: { icon: "worker", title: "Нужны работники", body: "Без работников смена не начнётся. Назначь хотя бы одного жителя в лесопилку.", action: "Назначить работников" },
       hint: { icon: "hint", title: "Как найти ход", body: "Найди две одинаковые фишки рядом. Поменяй соседнюю фишку так, чтобы собрать ряд из трёх или больше.", action: "Понятно" },
     } as const;
     let content: string;
     if (modal === "pause") {
-      content = `<button class="m3-secondary m3-pause-rules" data-action="rules">Правила</button><h2>Смена на паузе</h2><p>Продолжи или заверши сейчас. Вся собранная добыча останется у тебя.</p><strong class="m3-modal-resource">${art("backpack", "m3-inline-art")}<span>Добыча сохранится</span></strong><button class="m3-primary" data-action="resume">Продолжить смену</button><button class="m3-secondary" data-action="finish">Завершить смену</button>`;
+      const pauseStatus = activeRun?.pendingPause ? "Сохраняем прогресс…" : activeRun?.paused ? "Прогресс сохранён" : "Добыча сохранится";
+      const toIsland = activeRun?.paused ? '<button class="m3-secondary" data-action="close">На остров</button>' : '';
+      content = `<button class="m3-secondary m3-pause-rules" data-action="rules">Правила</button><h2>Смена на паузе</h2><p>Продолжи или заверши сейчас. Вся собранная добыча останется у тебя.</p><strong class="m3-modal-resource">${art("backpack", "m3-inline-art")}<span>${pauseStatus}</span></strong><button class="m3-primary" data-action="resume">Продолжить смену</button><button class="m3-secondary" data-action="finish">Завершить смену</button>${toIsland}`;
     } else if (modal === "rules") {
-      content = `<h2>Как играть</h2><div class="m3-rules-example">${art("rulesExample")}</div><p>Нажми на фишку, затем на соседнюю. Три одинаковых по горизонтали или вертикали исчезают. Неудачный обмен не тратит ход.</p><p>В рабочих сменах главные фишки дают по 1 ресурсу, а цель приносит бонусный ящик. Вся добыча сохраняется.</p><p>В раскопках расчищай путь под амфорой, пока она не дойдёт до нижнего края. Если не успеешь, глубина сохранится.</p><button class="m3-primary" data-action="close-modal">Понятно, играем!</button>`;
+      const apple = renderMatch3Chip("farm", "apple", "m3-rule-chip");
+      content = `<h2>Как играть</h2><div class="m3-rules-example" aria-hidden="true">${apple.repeat(3)}</div><p>Нажми на фишку, затем на соседнюю. Три одинаковых по горизонтали или вертикали исчезают. Неудачный обмен не тратит ход.</p><p>В рабочих сменах главные фишки дают по 1 ресурсу, а цель приносит бонусный ящик. Вся добыча сохраняется.</p><p>В раскопках расчищай путь под амфорой, пока она не дойдёт до нижнего края. Если не успеешь, глубина сохранится.</p><button class="m3-primary" data-action="close-modal">Понятно, играем!</button>`;
     } else {
       const info = details[modal];
-      content = `<div class="m3-modal-icon">${art(info.icon)}</div><h2>${info.title}</h2><p>${info.body}</p><button class="m3-primary" data-action="close-modal">${info.action}</button>`;
+      const icon = info.icon === "lightning" || info.icon === "hint" ? shiftControl(info.icon) : art(info.icon);
+      content = `<div class="m3-modal-icon">${icon}</div><h2>${info.title}</h2><p>${info.body}</p><button class="m3-primary" data-action="close-modal">${info.action}</button>`;
     }
     return `<div class="m3-modal-backdrop" role="presentation"><section class="m3-modal m3-modal--${modal}" role="dialog" aria-modal="true" aria-label="${modal === "pause" ? "Смена на паузе" : modal === "rules" ? "Как играть" : details[modal].title}">${content}</section></div>`;
   }
 
-  function hubCard(id: ShiftId, icon: ChipId | "pot", title: string, detail: string) {
+  function hubCard(id: ShiftId, detail: string) {
+    const { icon, title } = matchThreeThemes[id];
     const rules = serverShifts.find((item) => item.shiftId === id);
     if (rules && id !== "dig") {
       const resource = detail.split(" · ")[0];
       detail = `${resource} · ${workersLabel(rules.assignedWorkers)}`;
     }
-    const iconArt = renderMatch3Tile(match3Tile(id, icon).file, "m3-card-icon");
+    const iconArt = renderMatch3Chip(id, icon, "m3-card-icon");
     return `<button class="m3-work-card" data-action="brief" data-shift="${id}">${iconArt}<span><b>${title}</b><small>${detail}</small></span><i>${controlIcon("next")}</i></button>`;
   }
 
@@ -410,13 +376,14 @@ export function mountMatchThree() {
     root.innerHTML = `<section class="m3-screen m3-hub${nightClass()}">
       <header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">${controlIcon("back")}</button><div><h1>Рабочие смены</h1><p>Ресурсы для твоего острова</p></div></header>
       <main><section class="m3-hub-intro"><b>Каждому месту — своя смена</b><p>Собирай фишки на поле 8×8. Выбери, что нужно острову сейчас.</p></section>
-        ${hubCard("sawmill", "log", "Лесопилка", "Дерево · 2 работника")}
-        ${hubCard("farm", "wheat", "Ферма", "Еда · 2 работника")}
-        ${hubCard("quarry", "rock", "Каменоломня", "Камень · 2 работника")}
-        ${hubCard("mine", "pickaxe", "Рудник", "Железо · 1 работник")}
-        ${hubCard("dig", "pot", "Раскопки", "Новый участок · древняя находка")}
-        <button class="m3-island-button" data-action="close">На остров</button>
-      </main></section>`;
+        ${hubCard("sawmill", "Дерево · 2 работника")}
+        ${hubCard("farm", "Еда · 2 работника")}
+        ${hubCard("quarry", "Камень · 2 работника")}
+        ${hubCard("mine", "Железо · 1 работник")}
+        ${hubCard("dig", "Новый участок · древняя находка")}
+      </main>
+      <footer class="m3-screen-actions"><button class="m3-secondary" data-action="close">На остров</button></footer>
+    </section>`;
   }
 
   function renderBrief() {
@@ -434,14 +401,15 @@ export function mountMatchThree() {
         ? "Провизия уже внесена. Глубина сохранится, даже если не успеешь."
         : `Бонусный ящик за цель: +${theme.bonus} ${theme.resourceName}. Вся добыча останется у тебя.`;
     root.innerHTML = `<section class="m3-screen m3-brief${nightClass()}">
-      <header class="m3-header"><button class="m3-icon-button" data-action="hub" aria-label="К списку смен">${controlIcon("back")}</button><div><h1>${theme.title}</h1><p>Перед началом</p></div><span class="m3-shift-mark" aria-hidden="true">${controlIcon("pause")}</span></header>
-      <main class="m3-brief-main"><section class="m3-brief-hero">${themeArt(theme, "m3-brief-icon")}<div><b>${theme.subtitle}</b><p>Смена приносит ресурсы на остров</p></div></section>
+      <header class="m3-header"><button class="m3-icon-button" data-action="hub" aria-label="К списку смен">${controlIcon("back")}</button><div><h1>${theme.title}</h1><p>Перед началом</p></div></header>
+      <main class="m3-brief-main"><section class="m3-brief-hero">${renderMatch3Chip(theme.id, theme.icon, "m3-brief-icon")}<div><b>${theme.subtitle}</b><p>Смена приносит ресурсы на остров</p></div></section>
         <section class="m3-goal-card"><b>${goalText}</b><p>${bonusText}</p></section>
         <section class="m3-move-card"><div><b>Ходов в смене</b><strong>${theme.moves}</strong></div><p>${moveDescription}</p></section>
-        ${theme.kind === "dig" ? `<section class="m3-stock-card m3-stock-card--dig">${art("pot", "m3-stock-art")}<div><small>Глубина раскопок</small><i><em style="width:${(savedDigDepth / digTarget) * 100}%"></em></i></div><b>${savedDigDepth} / ${digTarget}</b></section>` : `<section class="m3-stock-card">${chipArt(theme.mainChip, "m3-stock-art")}<div><small>На складе</small><i><em style="width:${stockPercent(theme.id)}%"></em></i></div><b>${amount} / ${limit}</b></section>`}
-        <p class="m3-note">${theme.kind === "dig" ? "Не успеешь за смену — продолжишь с той же глубины." : "Не достигнешь цели — все равно заберешь добычу. Играть можно снова без ограничения попыток."}</p>
-        <button class="m3-primary m3-bottom-action" data-action="start">Начать смену</button>
-      </main></section>`;
+        ${theme.kind === "dig" ? stockCard(theme, "Глубина раскопок", savedDigDepth, digTarget) : stockCard(theme, "На складе", amount, limit)}
+        <p class="m3-note">${theme.kind === "dig" ? "Не успеешь за смену — продолжишь с той же глубины." : "Не достигнешь цели — всё равно заберёшь добычу. Играть можно снова без ограничения попыток."}</p>
+      </main>
+      <footer class="m3-screen-actions"><button class="m3-primary" data-action="start">Начать смену</button></footer>
+    </section>`;
   }
 
   function renderGame() {
@@ -449,9 +417,9 @@ export function mountMatchThree() {
     const theme = shift.theme;
     const isDig = theme.kind === "dig";
     const currentValue = isDig ? Number(shift.digDepth >= shift.digTarget) : shift.collected;
-    const goalArt = renderMatch3Tile(match3Tile(theme.id, isDig ? "pot" : theme.mainChip).file, "m3-resource-art");
+    const goalArt = renderMatch3Chip(theme.id, isDig ? "pot" : theme.mainChip, "m3-resource-art");
     const progress = isDig ? shift.digDepth / shift.digTarget : shift.collected / theme.goal;
-    root.innerHTML = `<section class="m3-screen m3-game${nightClass()}">
+    root.innerHTML = `<section class="m3-screen m3-game${nightClass()}" data-shift="${theme.id}">
       <header class="m3-game-heading">
         <h1>${theme.title}</h1>
         <button class="m3-shift-button" data-action="pause">${shiftControl("pause")}Пауза</button>
@@ -485,11 +453,14 @@ export function mountMatchThree() {
     const { amount, limit } = stockFor(theme.id);
     if (theme.kind === "dig" && digFound) {
       root.innerHTML = `<section class="m3-screen m3-result m3-dig-result${nightClass()}"><header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">${controlIcon("back")}</button><div><h1>Раскопки</h1><p>Итоги смены</p></div></header><main>
-        <section class="m3-dig-result-hero"><span class="m3-result-icon">${art("pot")}</span><h2>Участок открыт!</h2><p class="m3-lead">Амфора добавлена в находки. Открыта новая территория.</p></section>
-        <section class="m3-dig-discovery">${penpotArt("resultTree", "m3-dig-tree")}<span><b>Новый участок</b><p>Новые места для построек и развития острова.</p></span></section>
+        <section class="m3-dig-result-hero"><span class="m3-result-icon">${renderMatch3Chip(theme.id, theme.icon, "m3-result-art")}</span><h2>Участок открыт!</h2><p class="m3-lead">Амфора добавлена в находки. На острове стала доступна новая территория.</p></section>
+        <section class="m3-dig-discovery">${art("resultTree", "m3-dig-tree")}<span><b>Новый участок</b><p>Новые места для построек и развития острова.</p></span></section>
         <section class="m3-dig-info"><b>Амфора найдена</b><p>Находка останется в коллекции острова.</p></section>
-        <button class="m3-primary m3-bottom-action" data-action="close">На остров</button><button class="m3-result-again" data-action="again">Ещё одна смена</button>
-      </main></section>`;
+      </main>
+      <footer class="m3-screen-actions">
+        <button class="m3-primary" data-action="close">На остров</button>
+        <button class="m3-secondary" data-action="again">Ещё одна смена</button>
+      </footer></section>`;
       return;
     }
     const reachedGoal = reward.reachedGoal;
@@ -500,17 +471,19 @@ export function mountMatchThree() {
       ? "Бонусный ящик твой. Добыча уже на складе."
       : reward.credited
         ? "Цель можно выполнить в следующий раз. Собранная добыча уже у тебя."
-        : "Ты еще ничего не собрал. Можно начать новую смену.";
-    const retryLabel = reachedGoal ? "Ещё одна смена" : "Ещё одна попытка";
+        : "Ты ещё ничего не собрал. Можно начать новую смену.";
     const helpTitle = theme.kind === "dig" ? "Можно продолжить раскопки" : reachedGoal ? theme.resultHelpTitle : "Вся добыча сохраняется";
-    const helpText = theme.kind === "dig" ? "Провизия за этот участок уже внесена." : reachedGoal ? theme.resultHelpText : "Попробуй ещё раз, когда захочешь.";
+    const helpText = theme.kind === "dig" ? "Провизия за этот участок уже внесена." : reachedGoal ? theme.resultHelpText : "Нет потери ресурсов и ограничений на число попыток. Попробуй ещё раз, когда захочешь.";
     root.innerHTML = `<section class="m3-screen m3-result${nightClass()}"><header class="m3-header"><button class="m3-icon-button" data-action="close" aria-label="Вернуться на остров">${controlIcon("back")}</button><div><h1>${reachedGoal ? theme.title : "Итоги смены"}</h1><p>${reachedGoal ? "Итоги смены" : "Добыча сохранена"}</p></div></header><main>
-      <section class="m3-result-hero${reachedGoal ? "" : " m3-result-hero--plain"}">${reachedGoal ? `<span class="m3-result-icon">${art("win")}</span>` : `<span class="m3-result-icon m3-result-icon--basket">${homeArt("basket")}</span>`}<h2>${title}</h2><p class="m3-lead">${detail}</p></section>
-      ${theme.kind === "resource" && reward.collected > 0 ? `<section class="m3-result-card"><div><small>Собрано ${theme.resourceName}</small><b>${reward.collected}</b></div><div><small>${reward.bonus ? "Бонус за цель" : "Бонус не получен"}</small><b>${reward.bonus ? `+${reward.bonus}` : "—"}</b></div><div class="m3-result-total"><small>Всего на склад</small><b>${reward.credited}</b>${reward.overflow ? `<small>Не поместилось: ${reward.overflow}</small>` : ""}</div></section>
-      <section class="m3-stock">${chipArt(theme.mainChip, "m3-stock-art")}<div><small>Теперь на складе</small><i><em style="width:${stockPercent(theme.id)}%"></em></i></div><b>${amount} / ${limit}</b></section>` : ""}
+      <section class="m3-result-hero${reachedGoal ? "" : " m3-result-hero--plain"}"><span class="m3-result-icon">${art(reachedGoal ? "win" : "basket")}</span><h2>${title}</h2><p class="m3-lead">${detail}</p></section>
+      ${theme.kind === "resource" && (reachedGoal || reward.overflow > 0) ? `<section class="m3-result-card"><div><small>Собрано ${theme.resourceName}</small><b>${reward.collected}</b></div><div><small>${reward.bonus ? "Бонус за цель" : "Бонус не получен"}</small><b>${reward.bonus ? `+${reward.bonus}` : "—"}</b></div><div class="m3-result-total"><small>Всего на склад</small><b>${reward.credited}</b></div>${reward.overflow ? `<small>Не поместилось: ${reward.overflow}</small>` : ""}</section>
+      ${stockCard(theme, "Теперь на складе", amount, limit)}` : ""}
       <section class="m3-result-help"><b>${helpTitle}</b><p>${helpText}</p></section>
-      <button class="m3-primary m3-bottom-action" data-action="${reachedGoal ? "close" : "hub"}">${reachedGoal ? "На остров" : "Выбрать смену"}</button><button class="m3-result-again" data-action="${reachedGoal ? "again" : "close"}">${reachedGoal ? retryLabel : "На остров"}</button>
-    </main></section>`;
+    </main>
+    <footer class="m3-screen-actions">
+      <button class="m3-primary" data-action="${reachedGoal ? "close" : "hub"}">${reachedGoal ? "На остров" : "Выбрать смену"}</button>
+      <button class="m3-secondary" data-action="${reachedGoal ? "again" : "close"}">${reachedGoal ? "Ещё одна смена" : "На остров"}</button>
+    </footer></section>`;
   }
 
   function render() {
@@ -529,10 +502,33 @@ export function mountMatchThree() {
     boardPhase = undefined;
   }
 
-  function showRun(run: Match3Run) {
-    const rules = serverShifts.find((item) => item.shiftId === run.shiftId);
-    const theme = themeFor(run.shiftId, { goal: run.goal, moves: rules?.moves ?? run.movesLeft });
+  function rememberRun(run?: LocalRun) {
     activeRun = run;
+    if (!storageKey) return;
+    try {
+      if (run) sessionStorage.setItem(storageKey, JSON.stringify(run));
+      else sessionStorage.removeItem(storageKey);
+    } catch {
+      // Если хранилище недоступно, смена живёт до обновления вкладки.
+    }
+  }
+
+  function readLocalRun(): LocalRun | undefined {
+    if (!storageKey) return undefined;
+    try {
+      const run = JSON.parse(sessionStorage.getItem(storageKey) ?? "null") as LocalRun | null;
+      if (run && Object.hasOwn(matchThreeThemes, run.shiftId) && run.board.length === boardSize &&
+          run.board.every((row) => row.length === boardSize && row.every((chip) => matchThreeThemes[run.shiftId].chips.includes(chip)))) {
+        return run;
+      }
+    } catch {
+      // Повреждённое сохранение этой вкладки не мешает открыть список смен.
+    }
+    return undefined;
+  }
+
+  function showRun(run: LocalRun) {
+    const theme = themeFor(run.shiftId, { goal: run.goal, moves: run.movesTotal });
     selectedTheme = theme;
     shift = {
       theme,
@@ -541,19 +537,19 @@ export function mountMatchThree() {
       collected: run.collected,
       digDepth: run.digDepth,
       digTarget: run.goal.targetDepth ?? 6,
-      amphora: run.amphora,
+      amphora: theme.kind === "dig" ? amphoraAtDepth(run.digDepth) : null,
       lightningCharges: run.chargesLeft,
-      lightningEnabled: run.chargesLeft > 0 || (rules?.charges ?? 0) > 0,
+      lightningEnabled: run.lightningEnabled,
       lightningArmed: false,
     };
     selected = undefined;
     hint = [];
-    modal = undefined;
+    modal = run.paused ? "pause" : undefined;
     screen = "game";
   }
 
-  function showResult(saved: Match3Result, settledNow: boolean) {
-    activeRun = null;
+  function showResult(saved: Match3Result) {
+    rememberRun();
     selectedTheme = themeFor(saved.shiftId, serverShifts.find((item) => item.shiftId === saved.shiftId));
     result = {
       theme: selectedTheme,
@@ -566,39 +562,74 @@ export function mountMatchThree() {
         reachedGoal: saved.goalReached,
       },
     };
-    if (settledNow) {
+    if (saved.serverSavedAt >= serverSavedAt) {
+      serverSavedAt = saved.serverSavedAt;
       warehouse = saved.warehouse;
       if (saved.dig) savedDigDepth = saved.dig.savedDepth;
       publishWarehouse();
-      if (saved.dig?.revealedCell) {
-        window.dispatchEvent(new CustomEvent("match3:cell-revealed", { detail: saved.dig.revealedCell }));
-      }
+    }
+    if (saved.dig?.revealedCell) {
+      window.dispatchEvent(new CustomEvent("match3:cell-revealed", { detail: saved.dig.revealedCell }));
     }
     const stock = saved.resourceId ? warehouse[saved.resourceId] : undefined;
-    modal = settledNow && stock && stock.amount >= stock.limit ? "storageFull" : undefined;
+    modal = stock && stock.amount >= stock.limit ? "storageFull" : undefined;
     screen = "result";
   }
 
-  async function loadState(next: "hub" | "brief" | "result" = "hub") {
+  async function loadState(next: "hub" | "brief" = "hub") {
     const state = await match3Api.state();
+    const key = "match3:run:" + state.playerId;
+    const currentRun = key === storageKey ? activeRun : undefined;
+    storageKey = key;
+    const local = currentRun ?? readLocalRun();
+    serverSavedAt = state.serverSavedAt;
     warehouse = state.warehouse;
     serverShifts = state.shifts;
-    activeRun = state.activeRun;
     savedDigDepth = state.digDepth;
+    excavationSiteId = state.excavation?.siteId;
     lastLightningYield = undefined;
     clearAnimation();
     publishWarehouse();
-    if (activeRun) {
-      digTargetCell = undefined;
-      showRun(activeRun);
-    } else if (next === "result" && state.lastResult) {
-      showResult(state.lastResult, false);
+
+    const serverRun = state.activeRun;
+    const useLocal = local && (local.pending || local.pendingPause || (serverRun
+      ? serverRun.runId === local.runId && serverRun.revision === local.legacyRevision
+      : local.legacyRevision === undefined && (local.shiftId !== "dig" ||
+        (local.excavationSiteId === excavationSiteId && local.digStartDepth === savedDigDepth))));
+    if (useLocal) {
+      rememberRun(local);
+      showRun(local);
+      if (!root.hidden) {
+        if (local.pending || shiftEnded(local)) await saveResult();
+        else if (local.pendingPause) await savePause();
+      }
+    } else if (serverRun) {
+      const rules = state.shifts.find((item) => item.shiftId === serverRun.shiftId);
+      const run: LocalRun = {
+        runId: serverRun.runId, shiftId: serverRun.shiftId, board: serverRun.board, goal: serverRun.goal,
+        movesLeft: serverRun.movesLeft, chargesLeft: serverRun.chargesLeft, collected: serverRun.collected,
+        digDepth: serverRun.digDepth, legacyRevision: serverRun.revision,
+        excavationSiteId: serverRun.shiftId === "dig" ? excavationSiteId : undefined,
+        digStartDepth: serverRun.shiftId === "dig" ? savedDigDepth : undefined,
+        movesTotal: rules?.moves ?? serverRun.movesLeft,
+        lightningEnabled: (rules?.charges ?? serverRun.chargesLeft) > 0,
+        paused: serverRun.clientManaged,
+      };
+      rememberRun(run);
+      showRun(run);
     } else {
+      rememberRun();
       const id = selectedTheme.id;
       selectedTheme = themeFor(id, serverShifts.find((item) => item.shiftId === id));
       modal = undefined;
-      screen = next === "brief" || (digTargetCell && !root.hidden) ? "brief" : "hub";
+      screen = next;
     }
+  }
+
+  function shiftEnded(run: LocalRun) {
+    return run.movesLeft === 0 || (run.shiftId === "dig"
+      ? run.digDepth >= (run.goal.targetDepth ?? 6)
+      : run.collected >= run.goal.target);
   }
 
   const errorModals: Partial<Record<string, Modal>> = {
@@ -616,30 +647,31 @@ export function mountMatchThree() {
     try {
       await operation();
     } catch (error) {
-      if (error instanceof Match3ApiError && errorModals[error.code]) {
-        modal = errorModals[error.code];
-      } else if (error instanceof Match3ApiError && [
-        "stale_revision", "active_run", "run_finished", "run_not_found", "world_not_found",
+      const retry = activeRun?.pending ? saveResult : activeRun?.pendingPause ? savePause : undefined;
+      if (error instanceof Match3ApiError && error.retryable) {
+        issue = {
+          message: "Сервер не ответил. Попробуй ещё раз.",
+          retry: retry ?? operation,
+        };
+      } else if (error instanceof Match3ApiError && retry && [
+        "stale_revision", "active_run", "excavation_changed", "idempotency_conflict", "run_finished",
       ].includes(error.code)) {
-        const restore = () => loadState(screen === "game" ? "result" : "hub");
+        rememberRun();
         try {
-          await restore();
-          if (error.code === "stale_revision" && screen === "game") {
-            issue = { message: "Поле обновилось. Проверь фишки и сделай ход ещё раз." };
-          }
+          await loadState();
+          issue = { message: "Состояние смены изменилось в другой вкладке. Данные обновлены." };
         } catch {
-          issue = { message: "Не удалось обновить состояние смены.", retry: restore };
+          issue = { message: "Не удалось обновить список смен.", retry: loadState };
         }
-      } else if (error instanceof Match3ApiError && error.retryable) {
-        issue = { message: "Сервер не ответил. Попробуй ещё раз.", retry: operation };
+      } else if (error instanceof Match3ApiError && errorModals[error.code] && !retry) {
+        modal = errorModals[error.code];
       } else {
         if (!(error instanceof Match3ApiError)) console.error(error);
         issue = {
-          message: error instanceof Match3ApiError && error.code === "no_excavation_site"
-            ? "Сейчас нет доступного участка для раскопок."
-            : error instanceof Match3ApiError && error.code === "unfinished_excavation"
-              ? "Сначала закончи раскопки на начатом участке."
-            : "Не удалось выполнить действие. Вернись к списку смен и попробуй ещё раз.",
+          message: activeRun?.pending
+            ? "Не удалось сохранить итог смены."
+            : activeRun?.pendingPause ? "Не удалось сохранить прогресс смены." : "Не удалось загрузить рабочие смены.",
+          retry: retry ?? loadState,
         };
       }
     } finally {
@@ -652,28 +684,65 @@ export function mountMatchThree() {
 
   function startShift() {
     const id = selectedTheme.id;
-    const key = match3RequestKey();
-    const target = id === "dig" ? digTargetCell : undefined;
-    return perform(async () => {
-      const run = await match3Api.start(id, key, target);
-      digTargetCell = undefined;
-      lastLightningYield = undefined;
-      showRun(run);
+    const rules = serverShifts.find((item) => item.shiftId === id);
+    if (!rules?.available) {
+      const reason = rules?.reasons[0];
+      modal = reason && errorModals[reason.code];
+      if (!modal) issue = { message: reason?.code === "no_excavation_site"
+        ? "Сейчас нет доступного участка для раскопок."
+        : "Не удалось загрузить правила смены.", retry: () => loadState("brief") };
+      render();
+      return;
+    }
+    const depth = id === "dig" ? savedDigDepth : 0;
+    const amphora = id === "dig" ? amphoraAtDepth(depth) : null;
+    const run: LocalRun = {
+      runId: newMatch3RunId(), shiftId: id, goal: rules.goal,
+      board: createBoard(selectedTheme.chips, Math.random, boardSize, amphora),
+      movesLeft: rules.moves, movesTotal: rules.moves, chargesLeft: rules.charges,
+      lightningEnabled: rules.charges > 0, collected: 0, digDepth: depth,
+      excavationSiteId: id === "dig" ? excavationSiteId : undefined,
+      digStartDepth: id === "dig" ? depth : undefined,
+    };
+    lastLightningYield = undefined;
+    rememberRun(run);
+    showRun(run);
+    render();
+  }
+
+  function resultPayload(run: LocalRun): ClientResult {
+    const { board, goal, movesTotal, lightningEnabled, pending, pendingPause, paused, ...payload } = run;
+    return payload;
+  }
+
+  async function savePause() {
+    if (!activeRun) return;
+    const run = { ...activeRun, paused: true, pendingPause: true };
+    rememberRun(run);
+    modal = "pause";
+    render();
+    const saved = await match3Api.pause(resultPayload(run), run.board);
+    if (run.shiftId === "dig") {
+      savedDigDepth = saved.digDepth;
+      excavationSiteId = saved.excavationSiteId ?? undefined;
+    }
+    rememberRun({
+      ...run, runId: saved.runId, legacyRevision: saved.revision, pendingPause: undefined,
+      excavationSiteId: saved.excavationSiteId ?? undefined,
+      digStartDepth: run.shiftId === "dig" ? saved.digDepth : undefined,
     });
   }
 
-  function finishShift() {
+  async function saveResult() {
+    if (!activeRun) return;
     const run = activeRun;
-    if (!run) return;
-    const key = match3RequestKey();
-    return perform(async () => {
-      showResult(await match3Api.finish(run, key), true);
-    });
+    if (!run.pending) rememberRun({ ...run, pending: true });
+    showResult(await match3Api.saveResult(resultPayload(run)));
   }
 
   const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 
-  async function playSteps(steps: Match3Step[]) {
+  async function playSteps(steps: CascadeStep[]) {
     if (!shift) return;
     for (const step of steps) {
       swapping = undefined;
@@ -689,6 +758,9 @@ export function mountMatchThree() {
       clearing = [];
       presentationBoard = step.after;
       dropping = changedPositions(step.before, step.after);
+      if (step.amphoraAfter && !samePosition(step.amphoraBefore, step.amphoraAfter)) {
+        dropping.push(step.amphoraAfter);
+      }
       boardPhase = "drop";
       shift.collected += step.earned;
       shift.amphora = step.amphoraAfter;
@@ -698,14 +770,32 @@ export function mountMatchThree() {
     }
   }
 
-  function settleRun(run: Match3Run) {
-    if (run.result) showResult(run.result, true);
-    else showRun(run);
+  function applyCascade(run: LocalRun, cascade: CascadeResult, movesLeft: number, chargesLeft: number) {
+    const next: LocalRun = {
+      ...run, board: cascade.board, movesLeft, chargesLeft,
+      collected: run.collected + cascade.collected,
+      digDepth: cascade.amphora ? cascade.amphora.row - 1 : 0,
+    };
+    rememberRun(next);
+    return next;
+  }
+
+  async function showCascade(next: LocalRun, steps: CascadeStep[]) {
+    if (!shift) return;
+    shift.moves = next.movesLeft;
+    shift.lightningCharges = next.chargesLeft;
+    await playSteps(steps);
+    showRun(next);
+    if (shiftEnded(next)) {
+      clearAnimation();
+      updateGameFrame();
+      await saveResult();
+    }
   }
 
   function useLightning() {
     const run = activeRun;
-    if (!run || !shift || busy) return;
+    if (!run || !shift || busy || run.pending || shiftEnded(run)) return;
     if (shift.lightningCharges < 1) {
       modal = shift.lightningEnabled ? "noCharges" : "noEnergy";
       render();
@@ -717,23 +807,22 @@ export function mountMatchThree() {
       updateGameFrame();
       return;
     }
-    const row = selected.row;
-    const key = match3RequestKey();
+    const { row } = selected;
     selected = undefined;
     hint = [];
     shift.lightningArmed = false;
+    const current = shift;
     return perform(async () => {
-      const response = await match3Api.lightning(run, row, key);
-      if (shift) shift.lightningCharges = response.chargesLeft;
-      await playSteps(response.steps);
-      lastLightningYield = response.steps.reduce((sum, step) => sum + step.earned, 0);
-      settleRun(response);
+      const cascade = strikeRow(run.board, row, current.theme, Math.random, current.amphora, run.collected);
+      const next = applyCascade(run, cascade, run.movesLeft, run.chargesLeft - 1);
+      await showCascade(next, cascade.steps);
+      lastLightningYield = current.theme.id === "sawmill" ? cascade.collected : undefined;
     });
   }
 
   function playMove(from: Position, to: Position) {
     const run = activeRun;
-    if (!run || !shift || busy || samePosition(potPosition(), from) || samePosition(potPosition(), to)) return;
+    if (!run || !shift || busy || run.pending || shiftEnded(run) || samePosition(potPosition(), from) || samePosition(potPosition(), to)) return;
     if (shift.lightningArmed) {
       selected = to;
       return useLightning();
@@ -741,41 +830,32 @@ export function mountMatchThree() {
     selected = undefined;
     lastLightningYield = undefined;
     hint = [];
-    const key = match3RequestKey();
+    const current = shift;
     return perform(async () => {
-      const response = await match3Api.move(run, from, to, key);
-      if (response.accepted || response.rejectionReason === "no_match") {
-        presentationBoard = run.board;
-        swapping = [from, to];
-        boardPhase = "swap";
+      const move = attemptMove(run.board, from, to, current.theme, Math.random, current.amphora, run.collected);
+      const next = move.accepted ? applyCascade(run, move, run.movesLeft - 1, run.chargesLeft) : run;
+      presentationBoard = run.board;
+      swapping = [from, to];
+      boardPhase = "swap";
+      updateGameFrame();
+      await wait(180);
+      if (move.accepted) {
+        await showCascade(next, move.steps);
+      } else {
+        presentationBoard = move.swappedBoard;
+        boardPhase = "return";
         updateGameFrame();
-        await wait(180);
-        if (!response.accepted) {
-          presentationBoard = response.swappedBoard;
-          boardPhase = "return";
-          updateGameFrame();
-          await wait(160);
-        }
+        await wait(160);
       }
-      if (shift) shift.moves = response.movesLeft;
-      await playSteps(response.steps);
-      settleRun(response);
     });
   }
 
   function showHint() {
-    const run = activeRun;
-    if (!run) return;
-    return perform(async () => {
-      const response = await match3Api.hint(run);
-      if (response.revision !== run.revision || !response.available) {
-        await loadState("result");
-        return;
-      }
-      hint = response.from && response.to ? [response.from, response.to] : [];
-      selected = undefined;
-      if (shift) shift.lightningArmed = false;
-    });
+    if (!shift || !activeRun || activeRun.pending || shiftEnded(activeRun)) return;
+    hint = findPossibleMoves(shift.board, shift.amphora)[0] ?? [];
+    selected = undefined;
+    shift.lightningArmed = false;
+    updateGameFrame();
   }
 
   async function playCell(clicked: Position) {
@@ -811,7 +891,6 @@ export function mountMatchThree() {
       return;
     } else if (action === "close-issue") issue = undefined;
     else if (action === "hub") {
-      digTargetCell = undefined;
       if (preview) screen = "hub";
       else {
         void perform(loadState);
@@ -823,7 +902,7 @@ export function mountMatchThree() {
       selectedTheme = themeFor(id, serverShifts.find((item) => item.shiftId === id));
       screen = "brief";
     } else if (action === "start") {
-      if (!preview) void startShift();
+      if (!preview) startShift();
       return;
     } else if (action === "again") {
       if (preview) screen = "brief";
@@ -832,10 +911,20 @@ export function mountMatchThree() {
         return;
       }
     }
-    else if (action === "pause") modal = "pause";
-    else if (action === "resume" || action === "close-modal") modal = undefined;
+    else if (action === "pause") {
+      if (activeRun) {
+        void perform(savePause);
+        return;
+      }
+      modal = "pause";
+    } else if (action === "resume") {
+      if (activeRun) rememberRun({ ...activeRun, paused: false });
+      modal = undefined;
+    } else if (action === "close-modal") {
+      modal = activeRun?.paused ? "pause" : undefined;
+    }
     else if (action === "finish") {
-      void finishShift();
+      if (activeRun) void perform(saveResult);
       return;
     } else if (action === "rules") modal = "rules";
     else if (action === "lightning") {
@@ -843,7 +932,7 @@ export function mountMatchThree() {
       return;
     }
     else if (action === "hint" && shift) {
-      void showHint();
+      showHint();
       return;
     }
     render();
@@ -887,7 +976,7 @@ export function mountMatchThree() {
         board: fixture.board?.map((row) => row.map((chip) => chip === "digRock" ? "rock" : chip)) ?? createBoard(selectedTheme.chips),
         moves: fixture.moves ?? selectedTheme.moves, collected: fixture.collected ?? 0,
         digDepth: depth, digTarget: 6,
-        amphora: selectedTheme.kind === "dig" ? { row: Math.min(7, 1 + depth), column: 3 } : null,
+        amphora: selectedTheme.kind === "dig" ? amphoraAtDepth(depth) : null,
         lightningCharges: fixture.charges ?? 0,
         lightningEnabled: fixture.lightningEnabled ?? (fixture.charges ?? 0) > 0,
         lightningArmed: fixture.armed ?? false,
@@ -915,5 +1004,4 @@ export function mountMatchThree() {
   publishWarehouse();
   render();
   if (!preview) void perform(loadState);
-  return { openDig: (target: Axial) => open(target) };
 }

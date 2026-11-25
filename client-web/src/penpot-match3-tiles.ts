@@ -38,6 +38,10 @@ export function match3Tile(shift: ShiftId, chip: ChipId | "pot") {
   return { file, label };
 }
 
+export function renderMatch3Chip(shift: ShiftId, chip: ChipId | "pot", className: string) {
+  return renderMatch3Tile(match3Tile(shift, chip).file, className);
+}
+
 export function renderMatch3Tile(file: string, className: string) {
   const base = `${import.meta.env.BASE_URL}ui/penpot-match3`;
   return `<span class="m3-art m3-tile-art ${className}" aria-hidden="true" style="--tile-day:url('${base}/day/${file}.webp');--tile-night:url('${base}/night/${file}.webp')"></span>`;
