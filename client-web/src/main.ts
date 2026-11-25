@@ -8,12 +8,9 @@ import {
   openIslandNavigation,
 } from "./camera";
 import { createAtmosphere } from "./atmosphere";
-import { demoMapSource, terrainNames, buildingNames, isWaterTerrain, type Cell } from "./map-data";
-import { canPickCell } from "./selection";
+import { demoMapSource, isWaterTerrain, type Cell } from "./map-data";
 import { hexKey, type Axial } from "./hex";
-import { GameApiError } from "./game-api";
-import { renderCells, worldApi, type ForestAction, type IslandSnapshot } from "./world-api";
-import { TapGesture } from "./gestures";
+import { renderCells, worldApi, type IslandSnapshot } from "./world-api";
 import { mountMatchThree } from "./match3-ui";
 import type { Warehouse } from "./match3-api";
 import { mountSystemTheme } from "./theme";
@@ -27,7 +24,6 @@ import "./penpot-layout.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
 const $ = (id: string) => document.getElementById(id)!;
-
 function mountHomeHud() {
   document.querySelectorAll<HTMLImageElement>("[data-home-icon]").forEach((image) => {
     const name = image.dataset.homeIcon as keyof typeof penpotHomeIcons;
@@ -48,7 +44,7 @@ async function start() {
   mountSystemTheme();
   mountHomeHud();
   mountHomeNavigation();
-  const shifts = mountMatchThree();
+  mountMatchThree();
   const preview = import.meta.env.DEV && new URLSearchParams(location.search).has("match3-preview");
   let snapshot: IslandSnapshot | undefined;
   if (!preview) {
@@ -124,11 +120,6 @@ async function start() {
     if (e.key === "+" || e.key === "=") zoom(1.2);
     else if (e.key === "-") zoom(1 / 1.2);
     else if (e.key === "Home") reset();
-    else if (e.key === "Enter" && snapshot) {
-      showCellList = true;
-      renderPanel();
-      cellSelect.focus();
-    }
     else if (
       ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)
     ) {
@@ -170,70 +161,9 @@ async function start() {
   let atmosphere = createAtmosphere(cells, center, span, camera, renderer, !!snapshot);
   scene.add(atmosphere.root);
   let nightBlend = document.body.classList.contains("night") ? 1 : 0;
-  const panel = $("island-panel");
-  const actionButton = $("island-action") as HTMLButtonElement;
-  const cellSelect = $("island-select") as HTMLSelectElement;
-  let selectedCell: Axial | undefined;
-  let showCellList = false;
-  let working = false;
-  let syncFailed = false;
-  let mapMessage = "";
+  let revealedCell: Axial | undefined;
   let refreshTimer: number | undefined;
   let worldQueue = Promise.resolve();
-
-  function renderPanel() {
-    const index = selectedCell ? cells.findIndex((cell) => hexKey(cell) === hexKey(selectedCell!)) : -1;
-    const cell = cells[index];
-    panel.hidden = !snapshot || (!cell && !showCellList && !mapMessage);
-    if (panel.hidden) return;
-    const inFog = cell?.type === "fog";
-    const differentSite = inFog && snapshot?.activeSite && hexKey(snapshot.activeSite) !== hexKey(cell);
-    $("island-title").textContent = cell ? cell.building ? buildingNames[cell.building] : terrainNames[cell.type] : "Участки острова";
-    $("island-lookup").hidden = !showCellList;
-    cellSelect.value = index < 0 ? "" : String(index);
-    $("island-status").textContent = mapMessage || (cell?.sapling ? "Здесь растёт саженец." : differentSite ? "Сначала закончи раскопки на начатом участке." : "");
-    $("island-status").hidden = !$("island-status").textContent;
-    const action = syncFailed ? "refresh"
-      : inFog && !differentSite ? "dig"
-      : cell && !cell.building && cell.type === "forest" ? "chopForest"
-      : cell && !cell.building && cell.type === "grass" && !cell.sapling ? "plantForest"
-      : undefined;
-    const labels = {
-      refresh: "Обновить остров",
-      dig: snapshot?.activeSite ? "Продолжить раскопки" : "Начать раскопки",
-      chopForest: "Срубить лес",
-      plantForest: "Посадить лес",
-    };
-    actionButton.hidden = !action;
-    actionButton.dataset.action = action;
-    actionButton.textContent = action ? labels[action] : "";
-    actionButton.disabled = working;
-  }
-
-  function fillCellList() {
-    const options = cells.flatMap((cell, index) => {
-      if (isWaterTerrain(cell.type)) return [];
-      const title = cell.building ? buildingNames[cell.building] : terrainNames[cell.type];
-      return [new Option(title + " · " + cell.q + ", " + cell.r, String(index))];
-    });
-    cellSelect.replaceChildren(new Option("Выберите участок", ""), ...options);
-  }
-
-  function selectCell(index: number) {
-    const cell = cells[index];
-    if (!cell || !island.select(index)) return;
-    selectedCell = { q: cell.q, r: cell.r };
-    mapMessage = "";
-    renderPanel();
-  }
-
-  function closePanel() {
-    selectedCell = undefined;
-    mapMessage = "";
-    showCellList = false;
-    island.clearSelection();
-    renderPanel();
-  }
 
   function scheduleGrowth() {
     window.clearTimeout(refreshTimer);
@@ -278,107 +208,38 @@ async function start() {
         openIsland = openIslandNavigation(cells, HEX_RADIUS);
         resize();
       }
-      fillCellList();
     }
 
     snapshot = next;
-    const destination = focus ?? selectedCell;
+    const destination = focus ?? revealedCell;
     if (destination) {
       const index = cells.findIndex((cell) => hexKey(cell) === hexKey(destination));
-      if (index >= 0 && island.select(index)) selectedCell = destination;
+      if (index >= 0 && island.select(index)) revealedCell = destination;
     }
   }
 
-  function updateWorld(forestEdit?: { type: ForestAction; position: Axial }, focus?: Axial) {
+  function updateWorld(focus?: Axial) {
     if (!snapshot) return;
     worldQueue = worldQueue.then(async () => {
-      if (!snapshot) return;
-      working = true;
-      renderPanel();
       try {
-        const next = forestEdit
-          ? await worldApi.forest(forestEdit.type, forestEdit.position, snapshot.serverSavedAt)
-          : await worldApi.load();
-        await applySnapshot(next, focus);
-        syncFailed = false;
-        mapMessage = focus ? "Новый участок открыт." : "";
+        await applySnapshot(await worldApi.load(), focus);
       } catch (error) {
-        if (forestEdit && error instanceof GameApiError && error.status === 409) {
-          try {
-            await applySnapshot(await worldApi.load());
-            syncFailed = false;
-            mapMessage = "Остров обновился. Проверь участок и попробуй ещё раз.";
-            return;
-          } catch {
-            // Следующая попытка начнётся с загрузки актуальной карты.
-          }
-        }
-        syncFailed = true;
-        mapMessage = "Не удалось обновить остров. Попробуй ещё раз.";
+        console.error("Не удалось обновить карту острова", error);
       } finally {
-        working = false;
-        renderPanel();
         scheduleGrowth();
       }
     });
   }
 
-  fillCellList();
   scheduleGrowth();
-  cellSelect.addEventListener("change", () => {
-    if (cellSelect.value !== "") selectCell(Number(cellSelect.value));
-  });
-  $("island-close").addEventListener("click", closePanel);
-  actionButton.addEventListener("click", () => {
-    if (working) return;
-    const action = actionButton.dataset.action;
-    if (action === "refresh") updateWorld();
-    else if (selectedCell && action === "dig") {
-      const target = selectedCell;
-      closePanel();
-      shifts.openDig(target);
-    } else if (selectedCell && (action === "chopForest" || action === "plantForest")) {
-      updateWorld({ type: action, position: selectedCell });
-    }
-  });
   window.addEventListener("match3:cell-revealed", (event) => {
-    updateWorld(undefined, (event as CustomEvent<Axial>).detail);
+    revealedCell = (event as CustomEvent<Axial>).detail;
+    updateWorld(revealedCell);
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) updateWorld();
   });
 
-  const gesture = new TapGesture(),
-    ray = new T.Raycaster();
-  canvas.addEventListener("pointerdown", (e) => {
-    if (e.button === 0)
-      gesture.down(e.pointerId, e.clientX, e.clientY, e.timeStamp);
-  });
-  canvas.addEventListener("pointermove", (e) =>
-    gesture.move(e.pointerId, e.clientX, e.clientY),
-  );
-  canvas.addEventListener("pointercancel", () => gesture.cancel());
-  canvas.addEventListener("lostpointercapture", () => gesture.cancel());
-  canvas.addEventListener("pointerup", (e) => {
-    if (!gesture.up(e.pointerId, e.clientX, e.clientY, e.timeStamp)) return;
-    const rect = canvas.getBoundingClientRect();
-    ray.setFromCamera(
-      new T.Vector2(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        (-(e.clientY - rect.top) / rect.height) * 2 + 1,
-      ),
-      camera,
-    );
-    const hit = ray.intersectObjects(island.picking, false)[0];
-    if (!hit) {
-      closePanel();
-      return;
-    }
-    const index = hit.object.userData.cellIndex as number;
-    if (cells[index]?.type === "fog" || canPickCell(cells, index, ray.ray, hit.distance, atmosphere.fog.region, clock.elapsedTime)) {
-      selectCell(index);
-    }
-  });
   function resize() {
     renderer.setSize(innerWidth, innerHeight);
     reset();
