@@ -16,6 +16,8 @@ import type { Warehouse } from "./match3-api";
 import { mountSystemTheme } from "./theme";
 import { mountHomeNavigation } from "./home-navigation";
 import { penpotHomeIcons } from "./penpot-home-icons";
+import { matchThreeThemes } from "./match3";
+import { renderMatch3Chip } from "./penpot-match3-tiles";
 import "@fontsource-variable/inter-tight";
 import "@fontsource-variable/onest";
 import "@fontsource/pt-serif/700.css";
@@ -24,10 +26,21 @@ import "./penpot-layout.css";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
 const $ = (id: string) => document.getElementById(id)!;
+const homeResourceThemes = new Map([
+  ["wood", matchThreeThemes.sawmill],
+  ["food", matchThreeThemes.farm],
+  ["stone", matchThreeThemes.quarry],
+  ["iron", matchThreeThemes.mine],
+]);
+
 function mountHomeHud() {
   document.querySelectorAll<HTMLImageElement>("[data-home-icon]").forEach((image) => {
     const name = image.dataset.homeIcon as keyof typeof penpotHomeIcons;
-    image.outerHTML = renderArt(penpotHomeIcons[name], `home-art home-icon--${name}`);
+    const theme = homeResourceThemes.get(name);
+    const className = `home-art home-icon--${name}`;
+    image.outerHTML = theme
+      ? `<span class="${className}" aria-hidden="true">${renderMatch3Chip(theme.id, theme.mainChip, "home-resource-art")}</span>`
+      : renderArt(penpotHomeIcons[name], className);
   });
   window.addEventListener("match3:warehouse", (event) => {
     const detail = (event as CustomEvent<Warehouse>).detail;
