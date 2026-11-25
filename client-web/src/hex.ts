@@ -1,5 +1,7 @@
 /** Axial pointy-top hex coordinates mapped onto Three.js's XZ ground plane. */
 export interface Axial { q: number; r: number }
+/** Южный ряд серверного острова, соответствует границе раскопок. */
+export const islandSouthBoundary = 3;
 export const hexDirections = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]] as const;
 export const hexKey = ({ q, r }: Axial) => `${q},${r}`;
 export function hexNeighbors({ q, r }: Axial): Axial[] {

@@ -5,6 +5,7 @@ import { parseCells, type Cell } from "./map-data";
 interface StoredWorld {
   serverSavedAt: number;
   data: string;
+  fogPreview?: unknown;
 }
 
 interface Sapling extends Axial {
@@ -16,6 +17,8 @@ export interface IslandSnapshot {
   serverSavedAt: number;
   cells: Cell[];
   saplings: Sapling[];
+  fogPreview?: Cell[];
+  generatorVersion?: number;
 }
 
 function readWorld(response: StoredWorld): IslandSnapshot {
@@ -26,16 +29,27 @@ function readWorld(response: StoredWorld): IslandSnapshot {
   }
   const cells = parseCells(progress.world?.cells);
   const saplings = progress.saplings as Sapling[];
+  const fogPreview = response.fogPreview === undefined ? undefined : parseCells(response.fogPreview, true);
+  if (fogPreview?.some((cell) => cell.state !== "unexplored" || cell.building || cell.type === "fog" || cell.type === "water")) {
+    throw new Error("Неверные данные о границе тумана");
+  }
   return {
     cells,
     saplings,
+    fogPreview,
+    generatorVersion: progress.world.generatorVersion,
     serverSavedAt: response.serverSavedAt,
   };
 }
 
+/** Силуэты относятся к сцене и не входят в сохранённую территорию. */
 export function renderCells(snapshot: IslandSnapshot): Cell[] {
   const planted = new Set(snapshot.saplings.map(hexKey));
-  return snapshot.cells.map((cell) => planted.has(hexKey(cell)) ? { ...cell, sapling: true } : cell);
+  const opened = new Set(snapshot.cells.map(hexKey));
+  return [
+    ...snapshot.cells.map((cell) => planted.has(hexKey(cell)) ? { ...cell, sapling: true } : cell),
+    ...(snapshot.fogPreview ?? []).filter((cell) => !opened.has(hexKey(cell))),
+  ];
 }
 
 export const worldApi = {

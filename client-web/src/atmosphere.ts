@@ -4,14 +4,14 @@ import { isWaterTerrain, type Cell } from "./map-data";
 import { HEX_RADIUS } from "./island";
 import { createNorthernFog, northernFogRegion } from "./northern-fog";
 
-/** Море и визуальный туман читают ту же карту, что и суша; скрытых координат острова здесь нет. */
+/** Море рисуется плоскостью. Край тумана следует за открытыми клетками и их соседями. */
 export function createAtmosphere(
   cells: Cell[],
   center: T.Vector3,
   span: number,
   camera: T.OrthographicCamera,
   renderer: T.WebGLRenderer,
-  serverMap = false,
+  mapFog?: { southRow: number; exhausted?: boolean },
 ) {
   const root = new T.Group();
   const land = cells
@@ -62,13 +62,16 @@ export function createAtmosphere(
   const waves = new T.LineSegments(wavesGeometry, wavesMaterial);
   root.add(waves);
   const region = northernFogRegion(cells, HEX_RADIUS, span);
-  if (serverMap) {
-    // Открытые сервером гексы должны оставаться видимыми и доступными для выбора.
-    const border = Math.min(...cells.map((c) => axialToWorld(c, HEX_RADIUS).z));
-    region.opaqueZ -= region.frontZ - (border - 3);
-    region.frontZ = border - 3;
+  if (mapFog) {
+    // При панорамировании края открытой суши остаются в пределах кадра.
+    const border = Math.min(...cells.filter((c) => c.state === "visible").map((c) => axialToWorld(c, HEX_RADIUS).z));
+    const front = border - (mapFog.exhausted ? span * 10 : HEX_RADIUS);
+    region.opaqueZ += front - region.frontZ;
+    region.frontZ = front;
   }
-  const fog = createNorthernFog(renderer, camera, region);
+  const fog = createNorthernFog(renderer, camera, region, mapFog && !mapFog.exhausted
+    ? { cells, radius: HEX_RADIUS, southRow: mapFog.southRow }
+    : undefined);
   // Лёгкие движущиеся полосы ряби поверх пространственного градиента глубины.
   const waterTime = { value: 0 };
   seaMaterial.onBeforeCompile = (shader) => {

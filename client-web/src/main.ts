@@ -9,7 +9,7 @@ import {
 } from "./camera";
 import { createAtmosphere } from "./atmosphere";
 import { demoMapSource, isWaterTerrain, type Cell } from "./map-data";
-import { hexKey, type Axial } from "./hex";
+import { hexKey, hexNeighbors, islandSouthBoundary, type Axial } from "./hex";
 import { renderCells, worldApi, type IslandSnapshot } from "./world-api";
 import { mountMatchThree } from "./match3-ui";
 import type { Warehouse } from "./match3-api";
@@ -57,6 +57,11 @@ async function start() {
     }
   }
   let cells = snapshot ? renderCells(snapshot) : await demoMapSource.load();
+  if (!snapshot) {
+    const visible = new Set(cells.filter((cell) => cell.state === "visible").map(hexKey));
+    cells = cells.filter((cell) => cell.state === "visible" ||
+      hexNeighbors(cell).some((neighbor) => visible.has(hexKey(neighbor))));
+  }
   let island = await createIsland(cells);
   let openIsland = openIslandNavigation(cells, HEX_RADIUS);
   const renderer = new T.WebGLRenderer({
@@ -158,7 +163,13 @@ async function start() {
   });
   sun.shadow.normalBias = 0.025;
   sun.shadow.bias = -0.00015;
-  let atmosphere = createAtmosphere(cells, center, span, camera, renderer, !!snapshot);
+  function fogSettings(world?: IslandSnapshot) {
+    return {
+      southRow: world ? islandSouthBoundary : Math.max(...cells.map((cell) => cell.r)),
+      exhausted: world?.generatorVersion === 2 && world.fogPreview?.length === 0,
+    };
+  }
+  let atmosphere = createAtmosphere(cells, center, span, camera, renderer, fogSettings(snapshot));
   scene.add(atmosphere.root);
   let nightBlend = document.body.classList.contains("night") ? 1 : 0;
   let revealedCell: Axial | undefined;
@@ -174,7 +185,7 @@ async function start() {
 
   function footprint(cell: Cell) {
     const terrain = isWaterTerrain(cell.type) || cell.type === "fog" ? cell.type : "land";
-    return [cell.q, cell.r, terrain, cell.height];
+    return [cell.q, cell.r, terrain, cell.height, cell.state];
   }
 
   async function applySnapshot(next: IslandSnapshot, focus?: Axial) {
@@ -203,7 +214,7 @@ async function start() {
         sun.shadow.camera.updateProjectionMatrix();
         scene.remove(atmosphere.root);
         atmosphere.dispose();
-        atmosphere = createAtmosphere(cells, center, span, camera, renderer, true);
+        atmosphere = createAtmosphere(cells, center, span, camera, renderer, fogSettings(next));
         scene.add(atmosphere.root);
         openIsland = openIslandNavigation(cells, HEX_RADIUS);
         resize();

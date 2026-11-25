@@ -61,7 +61,7 @@ export async function createIsland(cells: Cell[]) {
   ]);
   for (const c of cells) {
     const path = decorationPath(c);
-    if (path && c.state === "visible") paths.add(path);
+    if (path) paths.add(path);
   }
   const models = new Map(await Promise.all([...paths].map(async (path) => [path, await loadModel(path)] as const)));
   const scale = HEX_RADIUS / (2 / Math.sqrt(3));
@@ -101,10 +101,6 @@ export async function createIsland(cells: Cell[]) {
     color: 0xc7ae6a,
     roughness: 1,
   });
-  const unknownMaterial = new T.MeshStandardMaterial({
-    color: 0x80914f,
-    roughness: 1,
-  });
   const waterMaterial = new T.MeshStandardMaterial({
     color: 0x286c76,
     transparent: true,
@@ -120,7 +116,7 @@ export async function createIsland(cells: Cell[]) {
     6,
   );
   const land = new Set(
-    cells.filter((c) => !isWaterTerrain(c.type) && c.type !== "fog").map((c) => `${c.q},${c.r}`),
+    cells.filter((c) => c.type !== "water" && c.type !== "fog").map((c) => `${c.q},${c.r}`),
   );
   const picking: T.Object3D[] = [],
     tileRoots: T.Group[] = [];
@@ -133,15 +129,13 @@ export async function createIsland(cells: Cell[]) {
     root.add(tile);
     tileRoots.push(tile);
     const water = isWaterTerrain(cell.type);
-    if (water || cell.state === "unexplored") {
-      const material = cell.type === "river" ? riverMaterial : water ? waterMaterial : cell.type === "fog" ? fogMaterial : unknownMaterial;
-      const mesh = new T.Mesh(
-        hexGeometry,
-        material,
-      );
-      mesh.scale.set(cell.type === "fog" ? 0.94 : 1, water || cell.type === "fog" ? 0.025 : 0.26, cell.type === "fog" ? 0.94 : 1);
+    const opened = cell.state === "visible";
+    if (water || cell.type === "fog") {
+      const material = cell.type === "river" ? riverMaterial : water ? waterMaterial : fogMaterial;
+      const mesh = new T.Mesh(hexGeometry, material);
+      const riverBank = cell.type === "river" && cell.height > 0.3;
+      mesh.scale.set(cell.type === "fog" ? 0.94 : 1, riverBank ? cell.height + 0.12 : 0.025, cell.type === "fog" ? 0.94 : 1);
       mesh.position.y = -mesh.scale.y / 2;
-      mesh.castShadow = !water && cell.type !== "fog";
       mesh.receiveShadow = true;
       tile.add(mesh);
     } else {
@@ -188,7 +182,7 @@ export async function createIsland(cells: Cell[]) {
         }
       }
     }
-    if (!water && cell.type !== "fog") {
+    if (opened && !water && cell.type !== "fog") {
       // Тёмный скальный фундамент и два слоя грунта под тонкой травяной шапкой.
       const layer = (
         bottom: number,
@@ -279,12 +273,15 @@ export async function createIsland(cells: Cell[]) {
       });
     }
     tile.traverse((o) => {
-      if (o instanceof T.Mesh) {
+      if (!(o instanceof T.Mesh)) return;
+      if (opened) {
         o.userData.cellIndex = index;
         picking.push(o);
+      } else {
+        o.castShadow = false;
       }
     });
-    if (cell.state === "visible")
+    if (opened)
       for (let i = 0; i < 6; i++)
         for (const j of [i, i + 1]) {
           const angle = (j * Math.PI) / 3;
@@ -325,10 +322,9 @@ export async function createIsland(cells: Cell[]) {
     ),
   );
   root.updateMatrixWorld(true);
-  const visualBounds = new T.Box3().setFromObject(root);
   const framingPoints: T.Vector3[] = [];
-  root.traverse((o) => {
-    if (!(o instanceof T.Mesh)) return;
+  for (const o of picking) {
+    if (!(o instanceof T.Mesh)) continue;
     const positions = o.geometry.getAttribute("position");
     if (positions.count < 2000) {
       for (let i = 0; i < positions.count; i++)
@@ -347,7 +343,8 @@ export async function createIsland(cells: Cell[]) {
               new T.Vector3(x, y, z).applyMatrix4(o.matrixWorld),
             );
     }
-  });
+  }
+  const visualBounds = new T.Box3().setFromPoints(framingPoints);
   const selection = new T.Mesh(
     new T.RingGeometry(HEX_RADIUS * 0.88, HEX_RADIUS * 0.98, 6),
     new T.MeshBasicMaterial({
@@ -365,9 +362,9 @@ export async function createIsland(cells: Cell[]) {
     picking,
     visualBounds,
     framingPoints,
-    bounds: mapBounds(cells, HEX_RADIUS),
+    bounds: mapBounds(cells.filter((cell) => cell.state === "visible"), HEX_RADIUS),
     select(index: number) {
-      if (!canSelectCell(cells, index) && cells[index]?.type !== "fog") return false;
+      if (!canSelectCell(cells, index)) return false;
       selection.position.copy(tileRoots[index].position);
       selection.position.y += 0.035;
       selection.visible = true;

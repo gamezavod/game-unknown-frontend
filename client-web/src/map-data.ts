@@ -51,8 +51,8 @@ export function httpMapSource(url: string): MapSource {
     },
   };
 }
-export function parseCells(value: unknown): Cell[] {
-  if (!Array.isArray(value) || !value.length)
+export function parseCells(value: unknown, allowEmpty = false): Cell[] {
+  if (!Array.isArray(value) || (!allowEmpty && !value.length))
     throw new Error("Карта должна содержать клетки");
   const coordinates = new Set<string>();
   return value.map((raw: unknown) => {
