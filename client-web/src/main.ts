@@ -265,7 +265,8 @@ async function start() {
     | undefined;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
-    if (document.body.classList.contains("home-section-open")) return;
+    const { classList } = document.body;
+    if (classList.contains("home-section-open") || classList.contains("match3-open")) return;
     const night = document.body.classList.contains("night");
     nightBlend = T.MathUtils.damp(nightBlend, night ? 1 : 0, 2, dt);
     (scene.background as T.Color)

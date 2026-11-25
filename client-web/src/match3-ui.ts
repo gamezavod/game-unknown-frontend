@@ -1,16 +1,23 @@
 import { renderArt } from "./ui-art";
 import { syncBrowserTheme } from "./theme";
-import type { Axial } from "./hex";
 import { penpotVectors } from "./penpot-vectors";
 import { match3Tile, renderMatch3Tile } from "./penpot-match3-tiles";
 import { movesLabel, shiftMovesDescription, workersLabel } from "./match3-copy";
 import {
+  amphoraAtDepth,
   areAdjacent,
+  attemptMove,
+  boardSize,
   createBoard,
+  findPossibleMoves,
   matchThreeThemes,
   positionFromSwipe,
   resultReward,
+  samePosition,
+  strikeRow,
   type Board,
+  type CascadeResult,
+  type CascadeStep,
   type ChipId,
   type MatchThreeTheme,
   type Position,
@@ -19,11 +26,11 @@ import {
 import {
   match3Api,
   Match3ApiError,
-  match3RequestKey,
+  newMatch3RunId,
+  type ClientResult,
+  type Goal,
   type Match3Result,
-  type Match3Run,
   type Match3State,
-  type Match3Step,
   type ShiftView,
   type Warehouse,
 } from "./match3-api";
@@ -51,6 +58,16 @@ interface Shift {
   lightningEnabled: boolean;
   /** После нажатия молнии следующая выбранная фишка задает очищаемый ряд. */
   lightningArmed: boolean;
+}
+
+interface LocalRun extends ClientResult {
+  board: Board;
+  goal: Goal;
+  movesTotal: number;
+  lightningEnabled: boolean;
+  pending?: boolean;
+  paused?: boolean;
+  pendingPause?: boolean;
 }
 
 interface ResultState {
@@ -135,10 +152,6 @@ function shiftControl(name: keyof typeof shiftControls) {
   return `<svg class="m3-shift-control" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shiftControls[name]}"/></svg>`;
 }
 
-function samePosition(a: Position | undefined, b: Position) {
-  return a?.row === b.row && a.column === b.column;
-}
-
 function positionKey(position: Position) {
   return `${position.row}:${position.column}`;
 }
@@ -154,7 +167,6 @@ export function mountMatchThree() {
   let screen: Screen = "hub";
   let modal: Modal;
   let selectedTheme: MatchThreeTheme = matchThreeThemes.sawmill;
-  let digTargetCell: Axial | undefined;
   let shift: Shift | undefined;
   let selected: Position | undefined;
   let hint: Position[] = [];
@@ -166,8 +178,11 @@ export function mountMatchThree() {
   let busy = false;
   let lastLightningYield: number | undefined;
   let warehouse = initialWarehouse;
+  let serverSavedAt = 0;
   let serverShifts: Match3State["shifts"] = [];
-  let activeRun: Match3Run | null = null;
+  let activeRun: LocalRun | undefined;
+  let storageKey: string | undefined;
+  let excavationSiteId: string | undefined;
   let issue: { message: string; retry?: () => Promise<void> } | undefined;
   /** Раскопки сохраняют прогресс, если в смене закончились ходы. */
   let savedDigDepth = 0;
@@ -189,20 +204,15 @@ export function mountMatchThree() {
     document.body.classList.remove("match3-open");
     syncBrowserTheme();
   };
-  const open = (target?: Axial) => {
-    digTargetCell = target;
-    if (target && !activeRun) {
-      selectedTheme = matchThreeThemes.dig;
-      screen = "brief";
-    }
+  const open = () => {
     root.hidden = false;
     document.body.classList.add("match3-open");
     modal = undefined;
     syncBrowserTheme();
     render();
-    if (!preview) void perform(() => loadState(target ? "brief" : "hub"));
+    if (!preview) void perform(loadState);
   };
-  entry.addEventListener("click", () => open());
+  entry.addEventListener("click", open);
 
   function potPosition() {
     return shift?.amphora ?? undefined;
@@ -386,7 +396,9 @@ export function mountMatchThree() {
     } as const;
     let content: string;
     if (modal === "pause") {
-      content = `<button class="m3-secondary m3-pause-rules" data-action="rules">Правила</button><h2>Смена на паузе</h2><p>Продолжи или заверши сейчас. Вся собранная добыча останется у тебя.</p><strong class="m3-modal-resource">${art("backpack", "m3-inline-art")}<span>Добыча сохранится</span></strong><button class="m3-primary" data-action="resume">Продолжить смену</button><button class="m3-secondary" data-action="finish">Завершить смену</button>`;
+      const pauseStatus = activeRun?.pendingPause ? "Сохраняем прогресс…" : activeRun?.paused ? "Прогресс сохранён" : "Добыча сохранится";
+      const toIsland = activeRun?.paused ? '<button class="m3-secondary" data-action="close">На остров</button>' : '';
+      content = `<button class="m3-secondary m3-pause-rules" data-action="rules">Правила</button><h2>Смена на паузе</h2><p>Продолжи или заверши сейчас. Вся собранная добыча останется у тебя.</p><strong class="m3-modal-resource">${art("backpack", "m3-inline-art")}<span>${pauseStatus}</span></strong><button class="m3-primary" data-action="resume">Продолжить смену</button><button class="m3-secondary" data-action="finish">Завершить смену</button>${toIsland}`;
     } else if (modal === "rules") {
       content = `<h2>Как играть</h2><div class="m3-rules-example">${art("rulesExample")}</div><p>Нажми на фишку, затем на соседнюю. Три одинаковых по горизонтали или вертикали исчезают. Неудачный обмен не тратит ход.</p><p>В рабочих сменах главные фишки дают по 1 ресурсу, а цель приносит бонусный ящик. Вся добыча сохраняется.</p><p>В раскопках расчищай путь под амфорой, пока она не дойдёт до нижнего края. Если не успеешь, глубина сохранится.</p><button class="m3-primary" data-action="close-modal">Понятно, играем!</button>`;
     } else {
@@ -529,10 +541,33 @@ export function mountMatchThree() {
     boardPhase = undefined;
   }
 
-  function showRun(run: Match3Run) {
-    const rules = serverShifts.find((item) => item.shiftId === run.shiftId);
-    const theme = themeFor(run.shiftId, { goal: run.goal, moves: rules?.moves ?? run.movesLeft });
+  function rememberRun(run?: LocalRun) {
     activeRun = run;
+    if (!storageKey) return;
+    try {
+      if (run) sessionStorage.setItem(storageKey, JSON.stringify(run));
+      else sessionStorage.removeItem(storageKey);
+    } catch {
+      // Если хранилище недоступно, смена живёт до обновления вкладки.
+    }
+  }
+
+  function readLocalRun(): LocalRun | undefined {
+    if (!storageKey) return undefined;
+    try {
+      const run = JSON.parse(sessionStorage.getItem(storageKey) ?? "null") as LocalRun | null;
+      if (run && Object.hasOwn(matchThreeThemes, run.shiftId) && run.board.length === boardSize &&
+          run.board.every((row) => row.length === boardSize && row.every((chip) => matchThreeThemes[run.shiftId].chips.includes(chip)))) {
+        return run;
+      }
+    } catch {
+      // Повреждённое сохранение этой вкладки не мешает открыть список смен.
+    }
+    return undefined;
+  }
+
+  function showRun(run: LocalRun) {
+    const theme = themeFor(run.shiftId, { goal: run.goal, moves: run.movesTotal });
     selectedTheme = theme;
     shift = {
       theme,
@@ -541,19 +576,19 @@ export function mountMatchThree() {
       collected: run.collected,
       digDepth: run.digDepth,
       digTarget: run.goal.targetDepth ?? 6,
-      amphora: run.amphora,
+      amphora: theme.kind === "dig" ? amphoraAtDepth(run.digDepth) : null,
       lightningCharges: run.chargesLeft,
-      lightningEnabled: run.chargesLeft > 0 || (rules?.charges ?? 0) > 0,
+      lightningEnabled: run.lightningEnabled,
       lightningArmed: false,
     };
     selected = undefined;
     hint = [];
-    modal = undefined;
+    modal = run.paused ? "pause" : undefined;
     screen = "game";
   }
 
-  function showResult(saved: Match3Result, settledNow: boolean) {
-    activeRun = null;
+  function showResult(saved: Match3Result) {
+    rememberRun();
     selectedTheme = themeFor(saved.shiftId, serverShifts.find((item) => item.shiftId === saved.shiftId));
     result = {
       theme: selectedTheme,
@@ -566,39 +601,74 @@ export function mountMatchThree() {
         reachedGoal: saved.goalReached,
       },
     };
-    if (settledNow) {
+    if (saved.serverSavedAt >= serverSavedAt) {
+      serverSavedAt = saved.serverSavedAt;
       warehouse = saved.warehouse;
       if (saved.dig) savedDigDepth = saved.dig.savedDepth;
       publishWarehouse();
-      if (saved.dig?.revealedCell) {
-        window.dispatchEvent(new CustomEvent("match3:cell-revealed", { detail: saved.dig.revealedCell }));
-      }
+    }
+    if (saved.dig?.revealedCell) {
+      window.dispatchEvent(new CustomEvent("match3:cell-revealed", { detail: saved.dig.revealedCell }));
     }
     const stock = saved.resourceId ? warehouse[saved.resourceId] : undefined;
-    modal = settledNow && stock && stock.amount >= stock.limit ? "storageFull" : undefined;
+    modal = stock && stock.amount >= stock.limit ? "storageFull" : undefined;
     screen = "result";
   }
 
-  async function loadState(next: "hub" | "brief" | "result" = "hub") {
+  async function loadState(next: "hub" | "brief" = "hub") {
     const state = await match3Api.state();
+    const key = "match3:run:" + state.playerId;
+    const currentRun = key === storageKey ? activeRun : undefined;
+    storageKey = key;
+    const local = currentRun ?? readLocalRun();
+    serverSavedAt = state.serverSavedAt;
     warehouse = state.warehouse;
     serverShifts = state.shifts;
-    activeRun = state.activeRun;
     savedDigDepth = state.digDepth;
+    excavationSiteId = state.excavation?.siteId;
     lastLightningYield = undefined;
     clearAnimation();
     publishWarehouse();
-    if (activeRun) {
-      digTargetCell = undefined;
-      showRun(activeRun);
-    } else if (next === "result" && state.lastResult) {
-      showResult(state.lastResult, false);
+
+    const serverRun = state.activeRun;
+    const useLocal = local && (local.pending || local.pendingPause || (serverRun
+      ? serverRun.runId === local.runId && serverRun.revision === local.legacyRevision
+      : local.legacyRevision === undefined && (local.shiftId !== "dig" ||
+        (local.excavationSiteId === excavationSiteId && local.digStartDepth === savedDigDepth))));
+    if (useLocal) {
+      rememberRun(local);
+      showRun(local);
+      if (!root.hidden) {
+        if (local.pending || shiftEnded(local)) await saveResult();
+        else if (local.pendingPause) await savePause();
+      }
+    } else if (serverRun) {
+      const rules = state.shifts.find((item) => item.shiftId === serverRun.shiftId);
+      const run: LocalRun = {
+        runId: serverRun.runId, shiftId: serverRun.shiftId, board: serverRun.board, goal: serverRun.goal,
+        movesLeft: serverRun.movesLeft, chargesLeft: serverRun.chargesLeft, collected: serverRun.collected,
+        digDepth: serverRun.digDepth, legacyRevision: serverRun.revision,
+        excavationSiteId: serverRun.shiftId === "dig" ? excavationSiteId : undefined,
+        digStartDepth: serverRun.shiftId === "dig" ? savedDigDepth : undefined,
+        movesTotal: rules?.moves ?? serverRun.movesLeft,
+        lightningEnabled: (rules?.charges ?? serverRun.chargesLeft) > 0,
+        paused: serverRun.clientManaged,
+      };
+      rememberRun(run);
+      showRun(run);
     } else {
+      rememberRun();
       const id = selectedTheme.id;
       selectedTheme = themeFor(id, serverShifts.find((item) => item.shiftId === id));
       modal = undefined;
-      screen = next === "brief" || (digTargetCell && !root.hidden) ? "brief" : "hub";
+      screen = next;
     }
+  }
+
+  function shiftEnded(run: LocalRun) {
+    return run.movesLeft === 0 || (run.shiftId === "dig"
+      ? run.digDepth >= (run.goal.targetDepth ?? 6)
+      : run.collected >= run.goal.target);
   }
 
   const errorModals: Partial<Record<string, Modal>> = {
@@ -616,30 +686,31 @@ export function mountMatchThree() {
     try {
       await operation();
     } catch (error) {
-      if (error instanceof Match3ApiError && errorModals[error.code]) {
-        modal = errorModals[error.code];
-      } else if (error instanceof Match3ApiError && [
-        "stale_revision", "active_run", "run_finished", "run_not_found", "world_not_found",
+      const retry = activeRun?.pending ? saveResult : activeRun?.pendingPause ? savePause : undefined;
+      if (error instanceof Match3ApiError && error.retryable) {
+        issue = {
+          message: "Сервер не ответил. Попробуй ещё раз.",
+          retry: retry ?? operation,
+        };
+      } else if (error instanceof Match3ApiError && retry && [
+        "stale_revision", "active_run", "excavation_changed", "idempotency_conflict", "run_finished",
       ].includes(error.code)) {
-        const restore = () => loadState(screen === "game" ? "result" : "hub");
+        rememberRun();
         try {
-          await restore();
-          if (error.code === "stale_revision" && screen === "game") {
-            issue = { message: "Поле обновилось. Проверь фишки и сделай ход ещё раз." };
-          }
+          await loadState();
+          issue = { message: "Состояние смены изменилось в другой вкладке. Данные обновлены." };
         } catch {
-          issue = { message: "Не удалось обновить состояние смены.", retry: restore };
+          issue = { message: "Не удалось обновить список смен.", retry: loadState };
         }
-      } else if (error instanceof Match3ApiError && error.retryable) {
-        issue = { message: "Сервер не ответил. Попробуй ещё раз.", retry: operation };
+      } else if (error instanceof Match3ApiError && errorModals[error.code] && !retry) {
+        modal = errorModals[error.code];
       } else {
         if (!(error instanceof Match3ApiError)) console.error(error);
         issue = {
-          message: error instanceof Match3ApiError && error.code === "no_excavation_site"
-            ? "Сейчас нет доступного участка для раскопок."
-            : error instanceof Match3ApiError && error.code === "unfinished_excavation"
-              ? "Сначала закончи раскопки на начатом участке."
-            : "Не удалось выполнить действие. Вернись к списку смен и попробуй ещё раз.",
+          message: activeRun?.pending
+            ? "Не удалось сохранить итог смены."
+            : activeRun?.pendingPause ? "Не удалось сохранить прогресс смены." : "Не удалось загрузить рабочие смены.",
+          retry: retry ?? loadState,
         };
       }
     } finally {
@@ -652,28 +723,65 @@ export function mountMatchThree() {
 
   function startShift() {
     const id = selectedTheme.id;
-    const key = match3RequestKey();
-    const target = id === "dig" ? digTargetCell : undefined;
-    return perform(async () => {
-      const run = await match3Api.start(id, key, target);
-      digTargetCell = undefined;
-      lastLightningYield = undefined;
-      showRun(run);
+    const rules = serverShifts.find((item) => item.shiftId === id);
+    if (!rules?.available) {
+      const reason = rules?.reasons[0];
+      modal = reason && errorModals[reason.code];
+      if (!modal) issue = { message: reason?.code === "no_excavation_site"
+        ? "Сейчас нет доступного участка для раскопок."
+        : "Не удалось загрузить правила смены.", retry: () => loadState("brief") };
+      render();
+      return;
+    }
+    const depth = id === "dig" ? savedDigDepth : 0;
+    const amphora = id === "dig" ? amphoraAtDepth(depth) : null;
+    const run: LocalRun = {
+      runId: newMatch3RunId(), shiftId: id, goal: rules.goal,
+      board: createBoard(selectedTheme.chips, Math.random, boardSize, amphora),
+      movesLeft: rules.moves, movesTotal: rules.moves, chargesLeft: rules.charges,
+      lightningEnabled: rules.charges > 0, collected: 0, digDepth: depth,
+      excavationSiteId: id === "dig" ? excavationSiteId : undefined,
+      digStartDepth: id === "dig" ? depth : undefined,
+    };
+    lastLightningYield = undefined;
+    rememberRun(run);
+    showRun(run);
+    render();
+  }
+
+  function resultPayload(run: LocalRun): ClientResult {
+    const { board, goal, movesTotal, lightningEnabled, pending, pendingPause, paused, ...payload } = run;
+    return payload;
+  }
+
+  async function savePause() {
+    if (!activeRun) return;
+    const run = { ...activeRun, paused: true, pendingPause: true };
+    rememberRun(run);
+    modal = "pause";
+    render();
+    const saved = await match3Api.pause(resultPayload(run), run.board);
+    if (run.shiftId === "dig") {
+      savedDigDepth = saved.digDepth;
+      excavationSiteId = saved.excavationSiteId ?? undefined;
+    }
+    rememberRun({
+      ...run, runId: saved.runId, legacyRevision: saved.revision, pendingPause: undefined,
+      excavationSiteId: saved.excavationSiteId ?? undefined,
+      digStartDepth: run.shiftId === "dig" ? saved.digDepth : undefined,
     });
   }
 
-  function finishShift() {
+  async function saveResult() {
+    if (!activeRun) return;
     const run = activeRun;
-    if (!run) return;
-    const key = match3RequestKey();
-    return perform(async () => {
-      showResult(await match3Api.finish(run, key), true);
-    });
+    if (!run.pending) rememberRun({ ...run, pending: true });
+    showResult(await match3Api.saveResult(resultPayload(run)));
   }
 
   const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 
-  async function playSteps(steps: Match3Step[]) {
+  async function playSteps(steps: CascadeStep[]) {
     if (!shift) return;
     for (const step of steps) {
       swapping = undefined;
@@ -689,6 +797,9 @@ export function mountMatchThree() {
       clearing = [];
       presentationBoard = step.after;
       dropping = changedPositions(step.before, step.after);
+      if (step.amphoraAfter && !samePosition(step.amphoraBefore, step.amphoraAfter)) {
+        dropping.push(step.amphoraAfter);
+      }
       boardPhase = "drop";
       shift.collected += step.earned;
       shift.amphora = step.amphoraAfter;
@@ -698,14 +809,32 @@ export function mountMatchThree() {
     }
   }
 
-  function settleRun(run: Match3Run) {
-    if (run.result) showResult(run.result, true);
-    else showRun(run);
+  function applyCascade(run: LocalRun, cascade: CascadeResult, movesLeft: number, chargesLeft: number) {
+    const next: LocalRun = {
+      ...run, board: cascade.board, movesLeft, chargesLeft,
+      collected: run.collected + cascade.collected,
+      digDepth: cascade.amphora ? cascade.amphora.row - 1 : 0,
+    };
+    rememberRun(next);
+    return next;
+  }
+
+  async function showCascade(next: LocalRun, steps: CascadeStep[]) {
+    if (!shift) return;
+    shift.moves = next.movesLeft;
+    shift.lightningCharges = next.chargesLeft;
+    await playSteps(steps);
+    showRun(next);
+    if (shiftEnded(next)) {
+      clearAnimation();
+      updateGameFrame();
+      await saveResult();
+    }
   }
 
   function useLightning() {
     const run = activeRun;
-    if (!run || !shift || busy) return;
+    if (!run || !shift || busy || run.pending || shiftEnded(run)) return;
     if (shift.lightningCharges < 1) {
       modal = shift.lightningEnabled ? "noCharges" : "noEnergy";
       render();
@@ -717,23 +846,22 @@ export function mountMatchThree() {
       updateGameFrame();
       return;
     }
-    const row = selected.row;
-    const key = match3RequestKey();
+    const { row } = selected;
     selected = undefined;
     hint = [];
     shift.lightningArmed = false;
+    const current = shift;
     return perform(async () => {
-      const response = await match3Api.lightning(run, row, key);
-      if (shift) shift.lightningCharges = response.chargesLeft;
-      await playSteps(response.steps);
-      lastLightningYield = response.steps.reduce((sum, step) => sum + step.earned, 0);
-      settleRun(response);
+      const cascade = strikeRow(run.board, row, current.theme, Math.random, current.amphora, run.collected);
+      const next = applyCascade(run, cascade, run.movesLeft, run.chargesLeft - 1);
+      await showCascade(next, cascade.steps);
+      lastLightningYield = current.theme.id === "sawmill" ? cascade.collected : undefined;
     });
   }
 
   function playMove(from: Position, to: Position) {
     const run = activeRun;
-    if (!run || !shift || busy || samePosition(potPosition(), from) || samePosition(potPosition(), to)) return;
+    if (!run || !shift || busy || run.pending || shiftEnded(run) || samePosition(potPosition(), from) || samePosition(potPosition(), to)) return;
     if (shift.lightningArmed) {
       selected = to;
       return useLightning();
@@ -741,41 +869,32 @@ export function mountMatchThree() {
     selected = undefined;
     lastLightningYield = undefined;
     hint = [];
-    const key = match3RequestKey();
+    const current = shift;
     return perform(async () => {
-      const response = await match3Api.move(run, from, to, key);
-      if (response.accepted || response.rejectionReason === "no_match") {
-        presentationBoard = run.board;
-        swapping = [from, to];
-        boardPhase = "swap";
+      const move = attemptMove(run.board, from, to, current.theme, Math.random, current.amphora, run.collected);
+      const next = move.accepted ? applyCascade(run, move, run.movesLeft - 1, run.chargesLeft) : run;
+      presentationBoard = run.board;
+      swapping = [from, to];
+      boardPhase = "swap";
+      updateGameFrame();
+      await wait(180);
+      if (move.accepted) {
+        await showCascade(next, move.steps);
+      } else {
+        presentationBoard = move.swappedBoard;
+        boardPhase = "return";
         updateGameFrame();
-        await wait(180);
-        if (!response.accepted) {
-          presentationBoard = response.swappedBoard;
-          boardPhase = "return";
-          updateGameFrame();
-          await wait(160);
-        }
+        await wait(160);
       }
-      if (shift) shift.moves = response.movesLeft;
-      await playSteps(response.steps);
-      settleRun(response);
     });
   }
 
   function showHint() {
-    const run = activeRun;
-    if (!run) return;
-    return perform(async () => {
-      const response = await match3Api.hint(run);
-      if (response.revision !== run.revision || !response.available) {
-        await loadState("result");
-        return;
-      }
-      hint = response.from && response.to ? [response.from, response.to] : [];
-      selected = undefined;
-      if (shift) shift.lightningArmed = false;
-    });
+    if (!shift || !activeRun || activeRun.pending || shiftEnded(activeRun)) return;
+    hint = findPossibleMoves(shift.board, shift.amphora)[0] ?? [];
+    selected = undefined;
+    shift.lightningArmed = false;
+    updateGameFrame();
   }
 
   async function playCell(clicked: Position) {
@@ -811,7 +930,6 @@ export function mountMatchThree() {
       return;
     } else if (action === "close-issue") issue = undefined;
     else if (action === "hub") {
-      digTargetCell = undefined;
       if (preview) screen = "hub";
       else {
         void perform(loadState);
@@ -823,7 +941,7 @@ export function mountMatchThree() {
       selectedTheme = themeFor(id, serverShifts.find((item) => item.shiftId === id));
       screen = "brief";
     } else if (action === "start") {
-      if (!preview) void startShift();
+      if (!preview) startShift();
       return;
     } else if (action === "again") {
       if (preview) screen = "brief";
@@ -832,10 +950,20 @@ export function mountMatchThree() {
         return;
       }
     }
-    else if (action === "pause") modal = "pause";
-    else if (action === "resume" || action === "close-modal") modal = undefined;
+    else if (action === "pause") {
+      if (activeRun) {
+        void perform(savePause);
+        return;
+      }
+      modal = "pause";
+    } else if (action === "resume") {
+      if (activeRun) rememberRun({ ...activeRun, paused: false });
+      modal = undefined;
+    } else if (action === "close-modal") {
+      modal = activeRun?.paused ? "pause" : undefined;
+    }
     else if (action === "finish") {
-      void finishShift();
+      if (activeRun) void perform(saveResult);
       return;
     } else if (action === "rules") modal = "rules";
     else if (action === "lightning") {
@@ -843,7 +971,7 @@ export function mountMatchThree() {
       return;
     }
     else if (action === "hint" && shift) {
-      void showHint();
+      showHint();
       return;
     }
     render();
@@ -887,7 +1015,7 @@ export function mountMatchThree() {
         board: fixture.board?.map((row) => row.map((chip) => chip === "digRock" ? "rock" : chip)) ?? createBoard(selectedTheme.chips),
         moves: fixture.moves ?? selectedTheme.moves, collected: fixture.collected ?? 0,
         digDepth: depth, digTarget: 6,
-        amphora: selectedTheme.kind === "dig" ? { row: Math.min(7, 1 + depth), column: 3 } : null,
+        amphora: selectedTheme.kind === "dig" ? amphoraAtDepth(depth) : null,
         lightningCharges: fixture.charges ?? 0,
         lightningEnabled: fixture.lightningEnabled ?? (fixture.charges ?? 0) > 0,
         lightningArmed: fixture.armed ?? false,
@@ -915,5 +1043,4 @@ export function mountMatchThree() {
   publishWarehouse();
   render();
   if (!preview) void perform(loadState);
-  return { openDig: (target: Axial) => open(target) };
 }
