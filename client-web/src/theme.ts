@@ -1,8 +1,9 @@
 /** Цвет страницы и системных зон браузера соответствует текущему экрану. */
 export function syncBrowserTheme() {
   const night = document.body.classList.contains("night");
-  const inShift = document.body.classList.contains("match3-open");
-  const color = inShift
+  const inSection = document.body.classList.contains("match3-open")
+    || document.body.classList.contains("home-section-open");
+  const color = inSection
     ? night ? "#0d202b" : "#f1f5ef"
     : night ? "#102a40" : "#b8d2ce";
   const scheme = night ? "dark" : "light";

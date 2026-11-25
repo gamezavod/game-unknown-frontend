@@ -61,7 +61,7 @@ export const matchThreeThemes: Record<ShiftId, MatchThreeTheme> = {
   sawmill: {
     id: "sawmill", title: "Лесопилка", subtitle: "Собираем дерево", resourceName: "дерева", resourcePlural: "бревен", resourceAccusative: "дерево",
     mainChip: "log", mainChipName: "Бревна", chips: ["log", "tree", "leaf", "acorn", "mushroom"], goal: 30, bonus: 10, moves: 24,
-    workers: "2 работника: 20 базовых ходов. Лес по соседству и счастье дают еще 4.", contextEmoji: "🌲", contextText: "Лес рядом +2 · счастье +2 хода",
+    workers: "2 работника: 20 базовых ходов. Лес по соседству и счастье дают ещё 4.", contextEmoji: "🌲", contextText: "Лес рядом +2 · счастье +2 хода",
     fieldNote: "Бревна дают дерево. Остальные фишки помогают.", icon: "log", resultHelpTitle: "Добыча поможет острову", resultHelpText: "Потрать ресурсы на строительство, исследования или развитие поселения.", kind: "resource",
   },
   farm: {

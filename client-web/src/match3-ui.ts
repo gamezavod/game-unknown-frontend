@@ -3,6 +3,7 @@ import { syncBrowserTheme } from "./theme";
 import type { Axial } from "./hex";
 import { penpotVectors } from "./penpot-vectors";
 import { match3Tile, renderMatch3Tile } from "./penpot-match3-tiles";
+import { movesLabel, shiftMovesDescription, workersLabel } from "./match3-copy";
 import {
   areAdjacent,
   createBoard,
@@ -67,13 +68,6 @@ const initialWarehouse: Warehouse = {
   iron: { amount: 0, limit: 200 },
 };
 
-function workersLabel(count: number) {
-  const last = count % 10;
-  const tens = count % 100;
-  if (tens >= 11 && tens <= 14) return `${count} работников`;
-  if (last === 1) return `${count} работник`;
-  return `${count} ${last >= 2 && last <= 4 ? "работника" : "работников"}`;
-}
 const exportedChipIcons: Partial<Record<ChipId | "pot", Match3IconName>> = {
   log: "log",
   tree: "tree",
@@ -140,9 +134,6 @@ const shiftControls = {
 function shiftControl(name: keyof typeof shiftControls) {
   return `<svg class="m3-shift-control" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shiftControls[name]}"/></svg>`;
 }
-
-const movePlural = new Intl.PluralRules("ru");
-const moveLabels = { one: "ход", few: "хода", many: "ходов", other: "ходов", zero: "ходов", two: "хода" };
 
 function samePosition(a: Position | undefined, b: Position) {
   return a?.row === b.row && a.column === b.column;
@@ -311,7 +302,7 @@ export function mountMatchThree() {
     }
     const amount = root.querySelector<HTMLElement>("[data-match-amount]");
     const moves = root.querySelector<HTMLElement>("[data-match-moves]");
-    const movesLabel = root.querySelector<HTMLElement>("[data-match-moves-label]");
+    const movesCaption = root.querySelector<HTMLElement>("[data-match-moves-label]");
     const progress = root.querySelector<HTMLElement>("[data-match-progress]");
     if (amount)
       amount.textContent =
@@ -319,7 +310,7 @@ export function mountMatchThree() {
           ? `${shift.digDepth >= shift.digTarget ? 1 : 0} / 1`
           : `${shift.collected} / ${shift.theme.goal}`;
     if (moves) moves.textContent = String(shift.moves);
-    if (movesLabel) movesLabel.textContent = moveLabels[movePlural.select(shift.moves)];
+    if (movesCaption) movesCaption.textContent = movesLabel(shift.moves);
     if (progress) {
       const value =
         shift.theme.kind === "dig"
@@ -433,7 +424,7 @@ export function mountMatchThree() {
     const { amount, limit } = stockFor(theme.id);
     const rules = serverShifts.find((item) => item.shiftId === theme.id);
     const digTarget = rules?.goal.targetDepth ?? 6;
-    const staff = theme.kind === "resource" && rules ? workersLabel(rules.assignedWorkers) : theme.workers;
+    const moveDescription = theme.kind === "resource" && rules ? shiftMovesDescription(rules) : theme.workers;
     const goalText =
       theme.kind === "dig"
         ? "Опусти амфору к нижнему краю"
@@ -446,7 +437,7 @@ export function mountMatchThree() {
       <header class="m3-header"><button class="m3-icon-button" data-action="hub" aria-label="К списку смен">${controlIcon("back")}</button><div><h1>${theme.title}</h1><p>Перед началом</p></div><span class="m3-shift-mark" aria-hidden="true">${controlIcon("pause")}</span></header>
       <main class="m3-brief-main"><section class="m3-brief-hero">${themeArt(theme, "m3-brief-icon")}<div><b>${theme.subtitle}</b><p>Смена приносит ресурсы на остров</p></div></section>
         <section class="m3-goal-card"><b>${goalText}</b><p>${bonusText}</p></section>
-        <section class="m3-move-card"><div><b>Ходов в смене</b><strong>${theme.moves}</strong></div><p>${staff}</p></section>
+        <section class="m3-move-card"><div><b>Ходов в смене</b><strong>${theme.moves}</strong></div><p>${moveDescription}</p></section>
         ${theme.kind === "dig" ? `<section class="m3-stock-card m3-stock-card--dig">${art("pot", "m3-stock-art")}<div><small>Глубина раскопок</small><i><em style="width:${(savedDigDepth / digTarget) * 100}%"></em></i></div><b>${savedDigDepth} / ${digTarget}</b></section>` : `<section class="m3-stock-card">${chipArt(theme.mainChip, "m3-stock-art")}<div><small>На складе</small><i><em style="width:${stockPercent(theme.id)}%"></em></i></div><b>${amount} / ${limit}</b></section>`}
         <p class="m3-note">${theme.kind === "dig" ? "Не успеешь за смену — продолжишь с той же глубины." : "Не достигнешь цели — все равно заберешь добычу. Играть можно снова без ограничения попыток."}</p>
         <button class="m3-primary m3-bottom-action" data-action="start">Начать смену</button>
@@ -474,7 +465,7 @@ export function mountMatchThree() {
               <i><em data-match-progress style="width:${Math.min(100, progress * 100)}%"></em></i>
               ${isDig ? "<small>Опусти к нижнему краю</small>" : ""}
             </div></div>
-            <div class="m3-moves"><b data-match-moves>${shift.moves}</b><small data-match-moves-label>${moveLabels[movePlural.select(shift.moves)]}</small></div>
+            <div class="m3-moves"><b data-match-moves>${shift.moves}</b><small data-match-moves-label>${movesLabel(shift.moves)}</small></div>
           </div>
           ${gameBoard()}
         </section>
